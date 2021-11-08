@@ -124,6 +124,7 @@ for event in content[0:250]:
     elif(event['type']['name'] == "Shot"): key = "shot"
     elif(event['type']['name'] == "Clearance"): key = "clearance"
     else: 
+        continue
         blank_image[:] = (18, 97, 41)
         cv2.putText(stats_image, f"({counter}): {event['type']['name']}", (10,15), font, fontScale, fontColor, lineType)
 
@@ -148,7 +149,7 @@ for event in content[0:250]:
 
     end_location = []
     
-    if(not('end_location' in event)):
+    if(key in event and 'end_location' in event[key]):
         end_location.append(event[key]['end_location'][0])
         end_location.append(event[key]['end_location'][1])
 
@@ -161,7 +162,7 @@ for event in content[0:250]:
 
     xStep, yStep = None, None
 
-    if(not('end_location' in event)):
+    if(key in event and 'end_location' in event[key]):
         xStep = ((int(end_location[0]) * ratio) - startX)/100
         yStep = ((int(end_location[1]) * ratio) - startY)/100
 
@@ -172,7 +173,7 @@ for event in content[0:250]:
         blank_image = draw_lines(blank_image, ratio)
         cv2.putText(stats_image, f"({counter}): {key} -- {homeTeamName if event['team']['id'] == firstTeam else awayTeamName }", (10,15), font, fontScale, fontColor, 1, cv2.LINE_AA)
         
-        if(not('end_location' in event)):
+        if(key in event and 'end_location' in event[key]):
             cv2.putText(stats_image, f"({int((startX+(xStep*i))/ratio)}, {int((startY+(yStep*i))/ratio)})", (10,35), font, fontScale, fontColor, 1, cv2.LINE_AA)
         else:
             cv2.putText(stats_image, f"({int(startX/ratio)}, {int(startY/ratio)})", (10,35), font, fontScale, fontColor, 1, cv2.LINE_AA)
