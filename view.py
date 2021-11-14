@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 import json
+import itertools
+
 
 content = []
 passes = []
@@ -8,16 +10,11 @@ passes = []
 with open("data.json", 'r') as j:
     content = json.loads(j.read())
 
-for event in content[:100]:
-    if(event['type']['name'] == "Pass"):
-        passes.append(event)
-
-
 
 height,width = 80, 120
 stats_h, stats_w = 10,120
 
-ratio = 7
+ratio = 5
 blank_image = np.zeros((height*ratio,width*ratio,3), np.uint8)
 stats_image = np.zeros((stats_h*ratio,stats_w*ratio,3), np.uint8)
 time = 120
@@ -27,7 +24,7 @@ fontScale              = 0.5
 fontColor              = (255,255,255)
 lineType               = 2  
 
-global_wait = 10
+global_wait = 2
 per_frame = 1
 
 def drawBall(image, position):
@@ -81,10 +78,6 @@ firstTeam = None
 homeTeamName = content[0]['team']['name']
 awayTeamName = content[1]['team']['name']
 
-
-# home_lineup = content[0]['tactics']['lineups']
-# away_lineup = content[1]['tactics']['lineups']
-
 home_details = {}
 away_details = {}
 
@@ -105,7 +98,16 @@ def fill_details(event):
 
 player_details = fill_details(content[0]['tactics']['lineup'] + content[1]['tactics']['lineup'])
 
-for event in content[0:250]:
+from itertools import tee, zip_longest
+
+def pairwise_tee(iterable):
+    a, b = tee(iterable)
+    next(b, None)
+    return zip_longest(a, b)
+
+for event, nextEvent in pairwise_tee(content[25:250]):
+
+    if(event['type']['name'] == "Pressure"): continue
 
     if(firstTeam == None):
         firstTeam = event['team']['id']
@@ -122,14 +124,16 @@ for event in content[0:250]:
     elif(event['type']['name'] == "Pass"): key = "pass"
     elif(event['type']['name'] == "Ball Receipt*"): key = "ball_receipt"
     elif(event['type']['name'] == "Shot"): key = "shot"
+    elif(event['type']['name'] == "Pressure"): key = "pressure"
     elif(event['type']['name'] == "Clearance"): key = "clearance"
     else: 
         continue
         blank_image[:] = (18, 97, 41)
+        print(event['type']['name'])
         cv2.putText(stats_image, f"({counter}): {event['type']['name']}", (10,15), font, fontScale, fontColor, lineType)
 
         cv2.imshow(f" {homeTeamName} vs {awayTeamName}", blank_image)
-        c = cv2.waitKey(1000)
+        c = cv2.waitKey(2000)
         if c == 27:
             exit()
 
@@ -166,8 +170,9 @@ for event in content[0:250]:
         xStep = ((int(end_location[0]) * ratio) - startX)/100
         yStep = ((int(end_location[1]) * ratio) - startY)/100
 
-
-    for i in range(100):
+    step_count = 100
+    if(key == 'ball_receipt'):  step_count=5
+    for i in range(step_count):
         blank_image[:] = (18, 97, 41)
         stats_image[:] = (0, 0, 0)
         blank_image = draw_lines(blank_image, ratio)
@@ -186,13 +191,25 @@ for event in content[0:250]:
             cv2.putText(stats_image, f"Pressure: {'under_pressure' in event}", (400,15), font, fontScale, fontColor, 1, cv2.LINE_AA)
             cv2.putText(stats_image, f"{encodeName(event['player']['name'])}", (150,35), font, fontScale, fontColor, 1, cv2.LINE_AA)
             drawPlayer(blank_image,'under_pressure' in event, event['player']['id'], getColour(event['team']['id']), (int(startX), int(startY)))
+        
         elif(key == "pass"):
             cv2.putText(stats_image, f"Pressure: {'under_pressure' in event}", (400,15), font, fontScale, fontColor, 1, cv2.LINE_AA)
             cv2.putText(stats_image, f"{encodeName(event['player']['name'])} to {encodeName(event['pass']['recipient']['name'])}", (100,35), font, fontScale, fontColor, 1, cv2.LINE_AA)
             drawBall(blank_image, (int(startX+(xStep*i)), int(startY+(yStep*i))))
             drawPlayer(blank_image, 'under_pressure' in event, event['player']['id'], getColour(event['team']['id']), (int(start_location[0] * ratio), int(start_location[1]) * ratio))
-            drawPlayer(blank_image, 'under_pressure' in event, event['pass']['recipient']['id'], getColour(event['team']['id']), (int(end_location[0]) * ratio, 
+            drawPlayer(blank_image, False, event['pass']['recipient']['id'], getColour(event['team']['id']), (int(end_location[0]) * ratio, 
                                     int(end_location[1]) * ratio))
+
+
+        if(nextEvent['type']['name'] == 'Pressure'):
+            next_start_location = []
+            next_start_location.append(nextEvent['location'][0])
+            next_start_location.append(nextEvent['location'][1])
+
+            if(nextEvent['team']['id'] != firstTeam):
+                next_start_location[0] = 120-next_start_location[0]
+                next_start_location[1] = 80-next_start_location[1]
+            drawPlayer(blank_image, False, nextEvent['player']['id'], getColour(nextEvent['team']['id']), (int(next_start_location[0] * ratio), int(next_start_location[1] * ratio)))
 
         cv2.imshow(f" {homeTeamName} vs {awayTeamName}", blank_image)
         cv2.imshow(f" {homeTeamName} vs {awayTeamName} -- Statistics Viewer", stats_image)
