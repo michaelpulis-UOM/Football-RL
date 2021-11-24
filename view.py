@@ -3,7 +3,6 @@ import numpy as np
 import json
 import itertools
 
-
 content = []
 passes = []
 
@@ -24,8 +23,8 @@ fontScale              = 0.5
 fontColor              = (255,255,255)
 lineType               = 2  
 
-global_wait = 2
-per_frame = 1
+global_wait = 4
+per_frame = 3
 
 def drawBall(image, position):
     circleThickness = 5
@@ -37,8 +36,12 @@ def drawPlayer(image, under_pressure, player, colour, position):
     if(under_pressure):
         cv2.circle(image, position, circleThickness*2, (0,242,255), thickness=1, lineType=8, shift=0)
 
-    textPos = (int(position[0]-circleThickness/2), int(position[1]+circleThickness/2))
-    posPos = (int(position[0]-circleThickness/1.5) , int(position[1]+circleThickness/2) + int(circleThickness *1.5))
+    jerseyNumberWidth = cv2.getTextSize( str(player_details[player]['number']), font, 0.5, 1)[0][0]
+    posLabelWidth = cv2.getTextSize( str(player_details[player]['position']), font, 0.5, 1)[0][0]
+
+    textPos = (int(position[0])- int(jerseyNumberWidth/2), int(position[1]+circleThickness/2))
+    posPos = (int(position[0]) - int(posLabelWidth/2), int(position[1]+circleThickness/2) + int(circleThickness *1.5))
+    
 
     cv2.putText(image, str(player_details[player]['number']), textPos, font, 0.5, fontColor, 1, cv2.LINE_AA)
     cv2.putText(image, str(player_details[player]['position']), posPos, font, 0.5, fontColor, 1, cv2.LINE_AA)
