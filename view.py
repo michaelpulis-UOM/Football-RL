@@ -116,7 +116,7 @@ class Visualiser():
         for frame in self.content:
 
             blank_image[:] = (18, 97, 41)
-            blank_image = self.draw_lines(self.blank_image, self.ratio)
+            # blank_image = self.draw_lines(self.blank_image, self.ratio)
 
             visible_area = frame['visible_area']
             x_values = visible_area[::2]
@@ -217,6 +217,12 @@ class Visualiser():
             # if(player['actor']): colour = (0,255,0)
             self.drawPlayer(blank_image, player['actor'], None, colour, location)
 
+    def drawPassLines(self, image, position):
+        passLineWidth = 5
+        x, y = position 
+
+        cv2.line(image, (x-self.ratio*passLineWidth, 0), (x-self.ratio*passLineWidth, 120*self.ratio), (0,255,0))
+        cv2.line(image, (x+self.ratio*passLineWidth, 0), (x+self.ratio*passLineWidth, 120*self.ratio), (0,255,0))
 
     def show(self):
         self.homeTeamName = self.content[0]['team']['name']
@@ -305,9 +311,9 @@ class Visualiser():
                 self.stats_image[:] = (0, 0, 0)
 
                 if(current_related_event != None):
-                    # pass
+                    pass
                     
-                    self.drawAllPlayers(self.blank_image, self.getColour(event['team']['id']), current_related_event)
+                    # self.drawAllPlayers(self.blank_image, self.getColour(event['team']['id']), current_related_event)
 
                 self.blank_image = self.draw_lines(self.blank_image, self.ratio)
                 cv2.putText(self.stats_image, f"({counter}): {key} -- {self.homeTeamName if event['team']['id'] == self.firstTeam else self.awayTeamName }", (10,15), self.font, self.fontScale, self.fontColor, 1, cv2.LINE_AA)
@@ -337,6 +343,7 @@ class Visualiser():
                         self.drawPlayer(self.blank_image, False, event['pass']['recipient']['id'], self.getColour(event['team']['id']), (int(end_location[0]) * self.ratio, 
                                             int(end_location[1]) * self.ratio))
 
+                    self.drawPassLines(self.blank_image, (startX, startY))
 
                 if(nextEvent['type']['name'] == 'Pressure'):
                     next_start_location = []
