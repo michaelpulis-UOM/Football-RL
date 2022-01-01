@@ -376,23 +376,23 @@ class Visualiser():
 
     def showPredictions(self, x, predictions):
         datasetMaker = CreateDataset()
-        to_predict_actions, to_predict_pos = predictions[0], predictions[1]
+        predicted_actions, predicted_x, predicted_y = predictions[0], predictions[1], predictions[2]
         for i in range(len(x)):
             print("At: ", i)
             self.blank_image = np.zeros((self.height * self.ratio, self.width * self.ratio,3), np.uint8)
             self.blank_image[:] = (18, 97, 41)
             self.blank_image = self.draw_lines(self.blank_image, self.ratio)
 
-            current_action = datasetMaker.ID_to_str[np.argmax(to_predict_actions[i])]
+            current_action = datasetMaker.ID_to_str[np.argmax(predicted_actions[i])]
             # self.drawBall(self.blank_image, (int(x[1]), int(x[2])))
             self.drawPlayer(self.blank_image, False, None, (0,0,255), (int(x[i][1] * self.ratio), int(x[i][2]) * self.ratio))
 
             # drawing the prediction
-            self.drawPlayer(self.blank_image, False, None, (255,0,0), (int(to_predict_pos[i][0] * self.ratio), int(to_predict_pos[i][1]) * self.ratio))
+            self.drawPlayer(self.blank_image, False, None, (255,0,0), (int(predicted_x[i] * 120 * self.ratio), int(predicted_y[i] * 80 * self.ratio)))
             
 
             cv2.putText(self.blank_image, "Predicted action: " + str(current_action), (10,25), self.font, 0.5, self.fontColor, 1, cv2.LINE_AA)
-            cv2.arrowedLine(self.blank_image, (int(x[i][1] * self.ratio), int(x[i][2]) * self.ratio), (int(to_predict_pos[i][0] * self.ratio), int(to_predict_pos[i][1]) * self.ratio), (0,255,0), 5)
+            cv2.arrowedLine(self.blank_image, (int(x[i][1] * self.ratio), int(x[i][2]) * self.ratio), (int(predicted_x[i] * 120 * self.ratio), int(predicted_y[i] * 80 * self.ratio)), (0,255,0), 5)
             cv2.imshow(f" Showing predictions...", self.blank_image)
             cv2.waitKey(2000)
 

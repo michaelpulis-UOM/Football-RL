@@ -22,17 +22,18 @@ def create_model(input_dims, output_dims):
 def create_model_multiple_prediction(input_dims, output_dims):   
     # create model
     visible = Input(shape=(input_dims,))
-    hidden1 = Dense(6, activation='relu', kernel_initializer='he_normal')(visible)
-    hidden2 = Dense(5, activation='relu', kernel_initializer='he_normal')(hidden1)
-    hidden3 = Dense(5, activation='relu', kernel_initializer='he_normal')(hidden2)
+    hidden1 = Dense(6, activation='relu')(visible)
+    hidden2 = Dense(5, activation='relu')(hidden1)
+    hidden3 = Dense(5, activation='relu')(hidden2)
     # classification output
     out_clas = Dense(output_dims, activation='softmax')(hidden3)
     # regression output
-    out_reg = Dense(2, activation='linear')(hidden3)
+    out_pos_x = Dense(1, activation='relu')(hidden3)
+    out_pos_y = Dense(1, activation='relu')(hidden3)
     # define model
-    model = Model(inputs=visible, outputs=[out_clas, out_reg])
+    model = Model(inputs=visible, outputs=[out_clas, out_pos_x, out_pos_y])
     # compile the keras model
-    model.compile(loss=['categorical_crossentropy', 'mse'], optimizer='adam')
+    model.compile(loss=['categorical_crossentropy', 'mse', 'mse'], optimizer='adam')
     return model
 
 def getDataset():
@@ -42,19 +43,14 @@ def getDataset():
     return datasetMaker.createDataset()
 
 def main():
-    # x, y = getDataset()
-    # model = create_model(x.shape[1], y.shape[1])
-    # model.fit(x,y, batch_size=32, epochs=150)
 
     datasetMaker = CreateDataset()
     datasetMaker.loadFilesFromDir('events/*.json')
-    # datasetMaker.loadFile('data.json')
-    x, y_class, y_pos = datasetMaker.createDatasetMultY()
-
+    x, y_class, y_pos_x, y_pos_y = datasetMaker.createDatasetMultY()
 
     print(len(x))
     model = create_model_multiple_prediction(x.shape[1], y_class.shape[1])
-    model.fit(x, [y_class, y_pos], batch_size=32, epochs=20)
+    model.fit(x, [y_class, y_pos_x, y_pos_y], batch_size=32, epochs=20)
 
     model.save('models/model1')
 
@@ -66,7 +62,7 @@ def main2():
     datasetMaker.loadFile('data.json')
     # datasetMaker.loadFilesFromDir('events/*.json')
 
-    x, y_class, y_pos = datasetMaker.createDatasetMultY()
+    x, _, _, _ = datasetMaker.createDatasetMultY()
 
     print("Length: ", len(x))
     to_predict = np.array(x[:][:10])
@@ -77,5 +73,9 @@ def main2():
     visualiser.showPredictions(to_predict, predictions)
 
 if __name__ == "__main__":
-    # main()
-    main2()
+
+    n = input("0 - Train, 1 - Predict: ")
+    if n == "0":
+        main()
+    elif n == "1":
+        main2()

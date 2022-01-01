@@ -49,7 +49,7 @@ class CreateDataset():
     # float: y coordinate of action
 
     # y:
-    # softmax between categories
+    # one hot encoded of location
     def createDataset(self):
 
         x, y = [], []
@@ -75,12 +75,14 @@ class CreateDataset():
     # float: y coordinate of action
 
     # y1:
-    # softmax between categories
+    # one hot encoded vector of next location
     # y2:
-    # array of locations of end location
+    # x value of next location
+    # y3:
+    # y value of next location
     def createDatasetMultY(self):
 
-        x, y1, y2 = [], [], []
+        x, y1, y2, y3 = [], [], [], []
         for i in range(len(self.events)-1):
 
             action = self.events[i]
@@ -95,9 +97,10 @@ class CreateDataset():
             
             x.append(x_entry)
             y1.append(y_class)
-            y2.append(y_pos)
+            y2.append(y_pos[0]/120)
+            y3.append(y_pos[1]/80)
 
-        return np.array(x), np.array(y1), np.array(y2)
+        return np.array(x), np.array(y1), np.array(y2), np.array(y3)
 
     def getEndLocationFromAction(self, action):
         try:
@@ -121,7 +124,7 @@ class CreateDataset():
 
     def loadFilesFromDir(self, dir):
         files = glob.glob(dir)
-        for file in tqdm(files[:20]):
+        for file in tqdm(files[:15]):
             self.loadFile(file)
 
     
