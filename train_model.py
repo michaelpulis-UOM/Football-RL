@@ -65,7 +65,7 @@ def main2():
     x, _, _, _ = datasetMaker.createDatasetMultY()
 
     print("Length: ", len(x))
-    to_predict = np.array(x[:][:10])
+    to_predict = np.array(x[:][40:60])
     predictions = model.predict(to_predict)
     to_predict_actions, to_predict_pos = predictions[0], predictions[1]
 

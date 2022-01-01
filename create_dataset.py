@@ -29,6 +29,8 @@ class CreateDataset():
 
         }
 
+        self.file_limit = 100
+
         self.ID_to_str = { v:k for k,v in self.good_events.items()}
 
     def filter_game(self, dataset):
@@ -124,7 +126,7 @@ class CreateDataset():
 
     def loadFilesFromDir(self, dir):
         files = glob.glob(dir)
-        for file in tqdm(files[:15]):
+        for file in tqdm(files[:self.file_limit]):
             self.loadFile(file)
 
     
