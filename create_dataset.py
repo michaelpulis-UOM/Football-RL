@@ -29,6 +29,8 @@ class CreateDataset():
 
         }
 
+        self.ID_to_str = { v:k for k,v in self.good_events.items()}
+
     def filter_game(self, dataset):
         return [ 
                     a for a in dataset 
@@ -66,6 +68,47 @@ class CreateDataset():
         return np.array(x), np.array(y)
             
 
+    # Dataset specifications:
+    # x:
+    # float: action ID (0 = PASS, 1 = SHOOT...etc)
+    # float: x coordinate of action
+    # float: y coordinate of action
+
+    # y1:
+    # softmax between categories
+    # y2:
+    # array of locations of end location
+    def createDatasetMultY(self):
+
+        x, y1, y2 = [], [], []
+        for i in range(len(self.events)-1):
+
+            action = self.events[i]
+            next_action = self.events[i+1]
+
+            x_entry = [self.getIDFromAction(action), action['location'][0], action['location'][1]]
+            y_class = np.zeros((len(self.good_events)))
+            y_class[int(self.getIDFromAction(next_action))] = 1
+            
+            y_pos = self.getEndLocationFromAction(next_action)
+            if(y_pos is None): continue
+            
+            x.append(x_entry)
+            y1.append(y_class)
+            y2.append(y_pos)
+
+        return np.array(x), np.array(y1), np.array(y2)
+
+    def getEndLocationFromAction(self, action):
+        try:
+            action_type = self.getIDFromAction(action)
+            if(action_type == self.SHOOT): return action['location']
+            if(action_type == self.PASS): return action['pass']['end_location']
+            if(action_type == self.CARRY): return action['carry']['end_location']
+        except Exception as e:
+            print("Failed:", e)
+            return None
+
     def loadFile(self, file_location):
         
         with open(file_location, 'r', encoding='utf-8') as file:
@@ -78,17 +121,18 @@ class CreateDataset():
 
     def loadFilesFromDir(self, dir):
         files = glob.glob(dir)
-        for file in tqdm(files):
+        for file in tqdm(files[:20]):
             self.loadFile(file)
 
     
 def main():
     datasetMaker = CreateDataset()
-    datasetMaker.loadFilesFromDir('events/*.json')
+    datasetMaker.loadFile('data.json')
+    # datasetMaker.loadFilesFromDir('events/*.json')
 
-    x, y = datasetMaker.createDataset()
+    x, y1, y2 = datasetMaker.createDatasetMultY()
     print(len(x))
-    print(x[0], y[0])
+    print(x[0], y1[0], y2[0])
 
 if __name__ == "__main__":
     main()
