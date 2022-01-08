@@ -25,7 +25,7 @@ class CreateDataset():
             'carry':self.CARRY,
             'clearance':self.CLEAR,
             # 'foul won': self.FOUL,
-            'foul committed': self.FOUL,
+            'foul': self.FOUL,
 
         }
 

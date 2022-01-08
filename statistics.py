@@ -208,8 +208,6 @@ class Statistics():
                 ha='center',                # Horizontally center label
                 va=va)                      # Vertically align label differently for
                                             # positive and negative values.
-
-
     
 def main():
     statistics = Statistics()

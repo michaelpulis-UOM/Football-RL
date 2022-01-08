@@ -3,6 +3,7 @@ import numpy as np
 import json
 import itertools
 from itertools import tee, zip_longest
+import matplotlib.pyplot as plt
 
 from create_dataset import CreateDataset
 
@@ -377,7 +378,9 @@ class Visualiser():
     def showPredictions(self, x, predictions):
         datasetMaker = CreateDataset()
         predicted_actions, predicted_x, predicted_y = predictions[0], predictions[1], predictions[2]
-        for i in range(len(x)):
+        time_wait = 5000
+        i = 0
+        while(True):
             print("At: ", i)
             self.blank_image = np.zeros((self.height * self.ratio, self.width * self.ratio,3), np.uint8)
             self.blank_image[:] = (18, 97, 41)
@@ -392,12 +395,36 @@ class Visualiser():
             
 
             cv2.putText(self.blank_image, "Predicted action: " + str(current_action), (10,25), self.font, 0.5, self.fontColor, 1, cv2.LINE_AA)
-            cv2.arrowedLine(self.blank_image, (int(x[i][1] * self.ratio), int(x[i][2]) * self.ratio), (int(predicted_x[i] * 120 * self.ratio), int(predicted_y[i] * 80 * self.ratio)), (0,255,0), 5)
-            cv2.imshow(f" Showing predictions...", self.blank_image)
-            cv2.waitKey(2000)
+            cv2.arrowedLine(self.blank_image, (int(x[i][1] * self.ratio), int(x[i][2]) * self.ratio), (int(predicted_x[i] * 120 * self.ratio), int(predicted_y[i] * 80 * self.ratio)), (0,255,0), 4)
+            window_title = f"Step {i} -- {'Paused' if time_wait == 0 else 'Playing'}"
+            cv2.imshow("visualiser", self.blank_image)
+            cv2.setWindowTitle("visualiser", window_title)
+            print(window_title)
 
+            plt.bar([datasetMaker.ID_to_str[i] for i in range(len(datasetMaker.ID_to_str))], predicted_actions[i])
+            
+            plt.savefig('tmp_chart.png')
 
+            cv2.imshow("Probability Distribution for Actions", cv2.imread("tmp_chart.png"))
 
+            key_presssed = cv2.waitKey(time_wait)
+            if(key_presssed == ord('j')):
+                i -= 1
+            elif(key_presssed == ord('l')):
+                i += 1
+            elif(key_presssed == ord(' ')):
+                if(time_wait == 0): time_wait = 5000
+                else: time_wait = 0
+            elif(key_presssed == ord('q')):
+                exit()
+            elif(key_presssed == -1):
+                i += 1
+
+            if(i < 0): i = 0
+            if(i >= len(x)):
+                break
+
+            plt.clf()
 
 visualiser = Visualiser()
 visualiser.loadContent('data.json')

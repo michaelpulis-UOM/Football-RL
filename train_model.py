@@ -42,7 +42,7 @@ def getDataset():
 
     return datasetMaker.createDataset()
 
-def main():
+def train():
 
     datasetMaker = CreateDataset()
     datasetMaker.loadFilesFromDir('events/*.json')
@@ -54,7 +54,7 @@ def main():
 
     model.save('models/model1')
 
-def main2():
+def predict():
     model = tf.keras.models.load_model('models/model1')
     model.summary()
 
@@ -76,6 +76,6 @@ if __name__ == "__main__":
 
     n = input("0 - Train, 1 - Predict: ")
     if n == "0":
-        main()
+        train()
     elif n == "1":
-        main2()
+        predict()
