@@ -28,3 +28,4 @@ plt.title(f"Distribution of the means of {samples} random samples:")
 plt.show()
 
 print("test")
+print("Test2")
