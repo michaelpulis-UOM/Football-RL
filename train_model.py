@@ -43,14 +43,21 @@ def getDataset():
     return datasetMaker.createDataset()
 
 def train():
-
+    
     datasetMaker = CreateDataset()
     datasetMaker.loadFilesFromDir('events/*.json')
+    datasetMaker.saveFiles("test")
+
     x, y_class, y_pos_x, y_pos_y = datasetMaker.createDatasetMultY()
 
-    print(len(x))
+    h = [0 for i in range(len(datasetMaker.ID_to_str))]
+    for i in y_class: h[np.argmax(i)] += 1
+    
+    print(h)
+    np.save("all", {'x':x, 'y_class':y_class, 'y_pos_x':y_pos_x, 'y_pos_y':y_pos_y})
+
     model = create_model_multiple_prediction(x.shape[1], y_class.shape[1])
-    model.fit(x, [y_class, y_pos_x, y_pos_y], batch_size=32, epochs=20)
+    model.fit(x, [y_class, y_pos_x, y_pos_y], batch_size=32, epochs=80)
 
     model.save('models/model1')
 
@@ -59,23 +66,27 @@ def predict():
     model.summary()
 
     datasetMaker = CreateDataset()
+
+    # datasetMaker.loadFile("tmp_store")
     datasetMaker.loadFile('data.json')
     # datasetMaker.loadFilesFromDir('events/*.json')
-
+    datasetMaker.saveFiles("tmp_store")
+    
     x, _, _, _ = datasetMaker.createDatasetMultY()
 
-    print("Length: ", len(x))
-    to_predict = np.array(x[:][40:60])
+    to_predict = np.array(x[:100])
     predictions = model.predict(to_predict)
     to_predict_actions, to_predict_pos = predictions[0], predictions[1]
 
     visualiser = Visualiser()
-    visualiser.showPredictions(to_predict, predictions)
+    visualiser.showPredictions(to_predict, predictions, model)
 
 if __name__ == "__main__":
+    # predict()
+    # exit()
 
     n = input("0 - Train, 1 - Predict: ")
     if n == "0":
         train()
     elif n == "1":
-        predict()
+        predict() 

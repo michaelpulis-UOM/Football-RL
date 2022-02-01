@@ -29,7 +29,7 @@ class CreateDataset():
 
         }
 
-        self.file_limit = 100
+        self.file_limit = -1
 
         self.ID_to_str = { v:k for k,v in self.good_events.items()}
 
@@ -128,6 +128,14 @@ class CreateDataset():
         files = glob.glob(dir)
         for file in tqdm(files[:self.file_limit]):
             self.loadFile(file)
+
+
+    def saveFiles(self, file_name):
+        np.save("np_db/" +file_name, self.events)
+
+    def leadFiles(self, file_name):
+        self.events = np.load("np_db/" +file_name) # load
+
 
     
 def main():

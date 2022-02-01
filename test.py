@@ -26,5 +26,3 @@ for i in range(samples):
 plt.hist(means)
 plt.title(f"Distribution of the means of {samples} random samples:")
 plt.show()
-
-print("testing1002")
