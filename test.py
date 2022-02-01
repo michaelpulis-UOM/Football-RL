@@ -27,5 +27,4 @@ plt.hist(means)
 plt.title(f"Distribution of the means of {samples} random samples:")
 plt.show()
 
-print("test")
-print("Test2")
+print("testing100")
