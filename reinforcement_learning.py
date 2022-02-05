@@ -1,10 +1,4 @@
 from d3rlpy.datasets import get_cartpole
-
-# get CartPole dataset
-dataset, env = get_cartpole()
-
-print("testing2")
-
 from d3rlpy.algos import DiscreteCQL
 from d3rlpy.metrics.scorer import discounted_sum_of_advantage_scorer
 from d3rlpy.metrics.scorer import evaluate_on_environment
