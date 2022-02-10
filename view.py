@@ -11,6 +11,11 @@ class Visualiser():
     def __init__(self):
         self.content = []
         self.passes = []
+
+        dataset = CreateDataset()
+
+        self.rows = dataset.xT_Map.shape[0]
+        self.cols = dataset.xT_Map.shape[1]
         self.height, self.width = 80, 120
         self.stats_h, self.stats_w = 10,120
 
@@ -520,10 +525,71 @@ class Visualiser():
             self.interactive_y = y/self.ratio
             # cv2. destroyAllWindows() 
 
+    def draw_zone(self, image, row, col, color):
+
+        start_y = int(80*(row/self.rows))
+        end_y = int(80*((row+1)/self.rows))
+
+        start_x = int(120*(col/self.cols))
+        end_x = int(120*((col+1)/self.cols))
+
+        image = cv2.rectangle(image, (start_x * self.ratio, start_y * self.ratio), (self.ratio * end_x, self.ratio * end_y), color, -1)
+
+        return (self.ratio* int((start_x+end_x)/2), self.ratio*int((start_y+end_y)/2))
+
+    def arrow_between(self, image, start_point, end_point):
+        
+        mid_point = (int((start_point[0] + end_point[0])/2), int((start_point[1] + end_point[1])/2))
+        length = sqrt( (mid_point[0] - start_point[0])**2 + (mid_point[1] - start_point[1])**2 )
+
+        cv2.arrowedLine(image, start_point, end_point, (0,0,0), 4, cv2.LINE_AA, 0, 20/length)
+
+    def visualise_sequence(self, sequence, chunks, prediction):
+        pred =  CreateDataset().ID_to_str[prediction]
+
+        split_ar = np.array_split(sequence, len(sequence)/chunks)
+        zipped_sequence = zip(split_ar, split_ar[1:])
+
+        
+        counter = 0
+        
+
+        for current_state, next_state in zipped_sequence:
+
+            self.blank_image[:] = (18, 97, 41)
+            self.stats_image[:] = (0, 0, 0)
+
+            self.blank_image = self.draw_lines(self.blank_image, self.ratio)
+
+            current_row, current_col = int(current_state[1]), int(current_state[2])
+            next_row, next_col = int(next_state[1]), int(next_state[2])
+
+            start_point = self.draw_zone(self.blank_image, current_row, current_col, (0,0,255))
+            end_point = self.draw_zone(self.blank_image, next_row, next_col, (255,0,0))
+
+            if(not(current_row == next_row and current_col == next_col)):
+                self.arrow_between(self.blank_image, start_point, end_point)
+                
+            if(counter == chunks):
+                cv2.putText(self.blank_image, "Prediction for BLUE: " + pred, (10,30), self.font, 0.5, self.fontColor, 1, cv2.LINE_AA)
+            else:
+                cv2.putText(self.blank_image, "CONTEXT", (10,30), self.font, 0.5, self.fontColor, 1, cv2.LINE_AA)
+                
+
+            counter += 1
+
+            cv2.imshow("sequence_show - "+pred, self.blank_image)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+
+
 visualiser = Visualiser()
-visualiser.loadContent('data.json')
+# visualiser.loadContent('data.json')
 # visualiser.loadTrackingContent('data_track.json')
 # visualiser.loadContent('data_track.json')
 # visualiser.showTime()
-visualiser.show()
+# visualiser.show()
+# s = [ 0, 0 ,12, 2, 3, 14,  0,  2, 14,  0,  6, 14,  2,  5, 15]
 # visualiser.showPredictions()
+
+# visualiser.visualise_sequence(s, 3, 1)
