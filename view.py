@@ -64,8 +64,6 @@ class Visualiser():
             c = (0,0,255) if player['teammate'] else (255,0,0)
             cv2.circle(image, position, circleThickness, c, thickness=-1, lineType=cv2.LINE_AA, shift=0)
 
-
-
     def drawPlayer(self, image, under_pressure, player, colour, position):
         circleThickness = 10
         cv2.circle(image, position, circleThickness, colour, thickness=-1, lineType=8, shift=0)
@@ -544,7 +542,7 @@ class Visualiser():
 
         cv2.arrowedLine(image, start_point, end_point, (0,0,0), 4, cv2.LINE_AA, 0, 20/length)
 
-    def visualise_sequence(self, sequence, chunks, prediction):
+    def visualise_sequence(self, sequence, chunks, prediction, actual):
         pred =  CreateDataset().ID_to_str[prediction]
 
         split_ar = np.array_split(sequence, len(sequence)/chunks)
@@ -575,6 +573,7 @@ class Visualiser():
             else:
                 cv2.putText(self.blank_image, "CONTEXT", (10,30), self.font, 0.5, self.fontColor, 1, cv2.LINE_AA)
                 
+            cv2.putText(self.blank_image, "Actual:" + CreateDataset().ID_to_str[actual], (10,60), self.font, 0.5, self.fontColor, 1, cv2.LINE_AA)
 
             counter += 1
 

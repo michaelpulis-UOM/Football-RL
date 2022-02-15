@@ -23,6 +23,7 @@ class CreateDataset():
 
         self.games = None
         self.events = None
+        self.ids = {}
         self.good_events = {
             
             'pass': self.PASS,
@@ -108,7 +109,7 @@ class CreateDataset():
     # one hot encoded of location
     def createEpisodeDataset(self):
 
-        x, y, rewards = [], [], []
+        x, y, rewards, event_ids = [], [], [], []
 
         current_actions = []
         lim = self.lim
@@ -123,6 +124,8 @@ class CreateDataset():
                 for sequence in sequences:
                     seq_x = [[self.getIDFromAction(item), self.get_XT_Zone(item)[0], self.get_XT_Zone(item)[1]] for item in sequence[:lim]]
                     seq_y = self.getIDFromAction(sequence[-1])
+                    
+                    event_ids.append([item['id'] for item in sequence])
 
                     first_5_zipped = zip(sequence, sequence[1:])
                     seq_r = [self.calculate_reward(current_event, next_event) for current_event, next_event in first_5_zipped]
@@ -130,12 +133,12 @@ class CreateDataset():
                     x.append(np.array(seq_x).flatten())
                     y.append(seq_y)
                     rewards.append(seq_r[0])
-                
+                    
                 current_actions = []
             else:
                 current_actions.append(self.events[i])
 
-        return np.array(x), np.array(y), np.array(rewards)
+        return np.array(x), np.array(y), np.array(rewards), np.array(event_ids)
             
 
     
@@ -175,7 +178,8 @@ class CreateDataset():
         return np.array(x), np.array(y1), np.array(y2), np.array(y3)
 
 
-
+    def getActionFromID(self, id_):
+        return self.events[self.ids[id_]] if id_ in self.ids else None
     # Dataset specifications:
     # x:    2D Array
     #       One hot encoded action. 5 actions
@@ -214,9 +218,13 @@ class CreateDataset():
             game = json.load(file)
             
         if(self.events is None):
-            self.events = self.filter_game(game)
-        else:
-            self.events = [*self.events, *self.filter_game(game)]
+            self.events = []
+
+        filtered_game = self.filter_game(game)
+
+        for event in filtered_game:
+            self.ids[event['id']] = len(self.events)
+            self.events.append(event)
 
     def loadFilesFromDir(self, dir):
         files = glob.glob(dir)
@@ -225,7 +233,7 @@ class CreateDataset():
 
 
     def saveFiles(self, file_name):
-        np.save("np_db/" +file_name, self.events)
+        np.save("np_db/" +file_name, np.array(self.events))
 
     def leadFiles(self, file_name):
         self.events = np.load("np_db/" +file_name) # load
@@ -237,11 +245,17 @@ def main():
     datasetMaker.loadFile('data.json')
     # datasetMaker.loadFilesFromDir('events/*.json')
 
+
     # x, y1, y2 = datasetMaker.createDatasetMultY()
 
-    x, y, rewards = datasetMaker.createEpisodeDataset()
+    x, y, rewards, event_ids = datasetMaker.createEpisodeDataset()
+    
+    # print(x.shape, len(x), event_ids[0])
+    # print(datasetMaker.getPlayerFromActionID(event_ids[0]))
 
-    print(x[0], y[0], rewards[0])
+
+    
+    # print(x[0], y[0], rewards[0])
 
 
     # print(datasetMaker.xT_Map.shape)
