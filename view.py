@@ -19,7 +19,7 @@ class Visualiser():
         self.height, self.width = 80, 120
         self.stats_h, self.stats_w = 10,120
 
-        self.ratio = 6
+        self.ratio = 10
         self.blank_image = np.zeros((self.height*self.ratio, self.width*self.ratio,3), np.uint8)
         self.stats_image = np.zeros((self.stats_h*self.ratio, self.stats_w*self.ratio,3), np.uint8)
 
@@ -523,7 +523,7 @@ class Visualiser():
             self.interactive_y = y/self.ratio
             # cv2. destroyAllWindows() 
 
-    def draw_zone(self, image, row, col, color):
+    def draw_zone(self, image, row, col, color, outline):
 
         start_y = int(80*(row/self.rows))
         end_y = int(80*((row+1)/self.rows))
@@ -531,7 +531,8 @@ class Visualiser():
         start_x = int(120*(col/self.cols))
         end_x = int(120*((col+1)/self.cols))
 
-        image = cv2.rectangle(image, (start_x * self.ratio, start_y * self.ratio), (self.ratio * end_x, self.ratio * end_y), color, -1)
+
+        image = cv2.rectangle(image, (start_x * self.ratio, start_y * self.ratio), (self.ratio * end_x, self.ratio * end_y), color, -1 if not outline else 2)
 
         return (self.ratio* int((start_x+end_x)/2), self.ratio*int((start_y+end_y)/2))
 
@@ -581,6 +582,57 @@ class Visualiser():
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
+
+    def show_players (self, image,  players_per_zone, oppo_per_zone):
+        self.blank_image[:] = (18, 97, 41)
+        self.stats_image[:] = (0, 0, 0)
+
+
+        for row in range(len(players_per_zone)):
+            for col in range(len(players_per_zone[row])):
+
+                start_point = self.draw_zone(image, row, col, (0,0,0), True)
+                label = str(players_per_zone[row][col]) + " - " + str(oppo_per_zone[row][col])
+                size = cv2.getTextSize(label, self.font, 0.5, 1)
+                start_point = (int(start_point[0]-size[0][0]/2), int(start_point[1]-size[0][1]/2))
+
+
+                cv2.putText(image, label, start_point, self.font, 0.5, self.fontColor, 1, cv2.LINE_AA)
+
+        cv2.imshow("Players Per Zone", image)
+        cv2.waitKey(0)
+
+    def draw_single_frame(self, frame):
+        blank_image = np.zeros((self.height * self.ratio, self.width * self.ratio,3), np.uint8)
+        blank_image[:] = (18, 97, 41)
+        self.draw_lines(blank_image, self.ratio)
+
+        visible_area = frame['visible_area']
+        x_values = visible_area[::2]
+        y_values = visible_area[1::2]
+
+        
+        team_a = (255,0,0) 
+        team_b = (0,0,255)
+
+        for i in range(len(x_values))[:len(x_values)-2]:
+            camera_x, camera_y = x_values[i], y_values[i]
+            nCamera_x, nCamera_y = x_values[i+1], y_values[i+1]
+            cv2.line(blank_image, (int(camera_x) * self.ratio, int(camera_y) * self.ratio), (int(nCamera_x) * self.ratio, int(nCamera_y) * self.ratio), (0,0,0))
+        
+        for player in frame['freeze_frame']:
+
+            x, y = player['location'][0], player['location'][1]
+            location = (int(x) * self.ratio, int(y) * self.ratio) 
+            colour = team_a if player['teammate'] else team_b
+
+            # if(player['actor']): colour = (0,255,0)
+            self.drawPlayer(blank_image, player['actor'], None, colour, location)
+
+
+        return blank_image
+
+        
 
 visualiser = Visualiser()
 # visualiser.loadContent('data.json')
