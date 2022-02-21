@@ -19,7 +19,7 @@ class Visualiser():
         self.height, self.width = 80, 120
         self.stats_h, self.stats_w = 10,120
 
-        self.ratio = 10
+        self.ratio = 9
         self.blank_image = np.zeros((self.height*self.ratio, self.width*self.ratio,3), np.uint8)
         self.stats_image = np.zeros((self.stats_h*self.ratio, self.stats_w*self.ratio,3), np.uint8)
 
@@ -235,7 +235,7 @@ class Visualiser():
 
             
 
-            location = (int(x) * self.ratio, int(y) * self.ratio) 
+            location = (int(x * self.ratio), int(y * self.ratio) )
             colour = team_a if player['teammate'] else team_b
 
             # if(player['actor']): colour = (0,255,0)
@@ -584,10 +584,6 @@ class Visualiser():
 
 
     def show_players (self, image,  players_per_zone, oppo_per_zone):
-        self.blank_image[:] = (18, 97, 41)
-        self.stats_image[:] = (0, 0, 0)
-
-
         for row in range(len(players_per_zone)):
             for col in range(len(players_per_zone[row])):
 
@@ -599,10 +595,108 @@ class Visualiser():
 
                 cv2.putText(image, label, start_point, self.font, 0.5, self.fontColor, 1, cv2.LINE_AA)
 
-        cv2.imshow("Players Per Zone", image)
-        cv2.waitKey(0)
 
-    def draw_single_frame(self, frame):
+        return image
+
+    def draw_players_per_circle(self, image, center, radii, team_per_zone, oppo_per_zone):
+
+        alpha = 0.4
+        rad2 = radii.copy()
+        rad2.reverse()
+        for radius in rad2:
+            overlay = image.copy()
+            print("Center from players per circle ", center)
+
+            center_mod = (int(self.ratio * center[0]), int(self.ratio * center[1]))
+            cv2.circle(overlay, center_mod, radius, (0,0,255), thickness=-1, lineType=cv2.LINE_AA, shift=0)
+            image = cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0)
+
+        return image
+
+    def distance_matrix(self, x0, y0, x1, y1):
+        obs = np.vstack((x0, y0)).T
+        interp = np.vstack((x1, y1)).T
+
+        # Make a distance matrix between pairwise observations
+        # Note: from <http://stackoverflow.com/questions/1871536>
+        # (Yay for ufuncs!)
+        d0 = np.subtract.outer(obs[:,0], interp[:,0])
+        d1 = np.subtract.outer(obs[:,1], interp[:,1])
+
+        return np.hypot(d0, d1) * 2
+
+    def drawIDW(self, frame):
+
+        x , y, z = [], [], []
+
+        nx = 120 
+        ny = 80
+
+        x.append(0)
+        x.append(nx)
+        x.append(0)
+        x.append(nx)
+
+        y.append(0)
+        y.append(0)
+        y.append(ny)
+        y.append(ny)
+
+        z.append(0)
+        z.append(0)
+        z.append(0)
+        z.append(0)
+
+        for player in frame['freeze_frame']:
+            x_t = int(player['location'][0] )
+            y_t = int(player['location'][1] )
+            z_t = -1 if player['teammate'] else 1
+            
+            x.append(x_t)
+            y.append(y_t)
+            z.append(z_t)
+
+        x = np.array(x)
+        y = np.array(y)
+        z = np.array(z)
+
+        xi = np.linspace(x.min(), x.max(), nx)
+        yi = np.linspace(y.min(), y.max(), ny)
+        xi, yi = np.meshgrid(xi, yi)
+        xi, yi = xi.flatten(), yi.flatten()
+        
+
+        dist = self.distance_matrix(x,y, xi,yi)
+
+        # In IDW, weights are 1 / distance
+        weights = 1 / dist
+
+        # Make weights sum to one
+        weights /= weights.sum(axis=0)
+
+        # Multiply the weights for each interpolated point by all observed Z-values
+        zi = np.dot(weights.T, z)
+
+        zi = zi.reshape((ny, nx)) * 2
+
+
+        self.plot(x,y,z,zi)
+
+        return zi
+
+
+    def plot(self, x,y,z,grid):
+        # plt.figure()
+        plt.imshow(grid, extent=(x.min(), x.max(), y.max(), y.min()), cmap='jet')
+        plt.scatter(x,y,c=z, cmap='jet')
+
+        plt.gca().set_axis_off()
+        plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
+                    hspace = 0, wspace = 0)
+        plt.margins(0,0)
+        plt.savefig("myfig.png",  bbox_inches = 'tight', transparent = True, pad_inches=0)
+        plt.clf()
+    def draw_single_frame(self, actor_position, frame):
         blank_image = np.zeros((self.height * self.ratio, self.width * self.ratio,3), np.uint8)
         blank_image[:] = (18, 97, 41)
         self.draw_lines(blank_image, self.ratio)
@@ -623,11 +717,16 @@ class Visualiser():
         for player in frame['freeze_frame']:
 
             x, y = player['location'][0], player['location'][1]
-            location = (int(x) * self.ratio, int(y) * self.ratio) 
+            location = (int(x * self.ratio), int(y * self.ratio))
             colour = team_a if player['teammate'] else team_b
 
-            # if(player['actor']): colour = (0,255,0)
+            if(player['actor']): 
+                colour = (0,255,0)
+                print("Actor position from single frame", (x,y))
+            cv2.putText(blank_image, str(player['actor']), location, self.font, 0.5, (0,0,0), 1, cv2.LINE_AA)
             self.drawPlayer(blank_image, player['actor'], None, colour, location)
+
+        # self.drawPlayer(blank_image, actor_position, None, (0,255,255), location)
 
 
         return blank_image

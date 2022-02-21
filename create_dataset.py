@@ -1,7 +1,11 @@
+import bisect
 import glob
 import numpy as np 
 import json
+import math
 from tqdm import tqdm
+import cv2
+import matplotlib.pyplot as plt
 
 class CreateDataset():
     
@@ -102,6 +106,28 @@ class CreateDataset():
         return zones
 
 
+    def getDistanceBetweenPlayers(self, l1, l2):
+        return math.sqrt((l1[0] - l2[0])**2 + (l1[1] - l2[1] )**2)
+
+    def getPlayersPerRadius(self, frame, center, radii=[10, 40, 80]):
+
+        team_zone_count = [0 for i in range(len(radii) + 1)]
+        oppo_zone_count = [0 for i in range(len(radii) + 1)]
+
+        for player in frame['freeze_frame']:
+
+            if player['actor']: continue
+
+            distance = self.getDistanceBetweenPlayers(center, player['location'])
+
+            
+            if player['teammate']:
+                team_zone_count[bisect.bisect(radii, distance)] += 1
+            elif not player['teammate']:
+                oppo_zone_count[bisect.bisect(radii, distance)] += 1
+
+        return team_zone_count, oppo_zone_count
+
     def getPlayersPerZone(self, frame):
 
         rows = self.xT_Map.shape[0]
@@ -112,15 +138,17 @@ class CreateDataset():
 
         for player in frame['freeze_frame']:
 
+            if player['actor']: continue
+
             x, y = player['location'][0], player['location'][1]
             r, c = self.get_zone_from_coords(x, y)
+            
             if player['teammate']:
                 team_players_per_zone[r][c] += 1
-            else:
+            elif not player['teammate']:
                 oppo_players_per_zone[r][c] += 1
 
         return team_players_per_zone, oppo_players_per_zone
-
 
     # Dataset specifications:
     # x:
@@ -152,14 +180,38 @@ class CreateDataset():
 
                     players_per_zone, oppo_players_per_zone = self.getPlayersPerZone(self.tracking_content[sequence[0]['id']])
 
+            
                     visualiser = Visualiser()
-                    image = visualiser.draw_single_frame(self.tracking_content[sequence[0]['id']])
-                    visualiser.show_players(image, players_per_zone, oppo_players_per_zone)
 
-                    exit()
+                    visualiser.drawIDW(self.tracking_content[sequence[0]['id']])
 
-                   
+                    image = visualiser.draw_single_frame(sequence[0]['location'], self.tracking_content[sequence[0]['id']])
+                    cv2.imshow("simple_players", image)
+                    image = visualiser.show_players(image, players_per_zone, oppo_players_per_zone)
+                    cv2.imshow("grid", image)
+
+                    radii = [25, 65, 140]
+                    team_per_radius, oppo_per_radius = self.getPlayersPerRadius(self.tracking_content[sequence[0]['id']], sequence[0]['location'], radii)
+                    image  = visualiser.draw_players_per_circle(image, sequence[0]['location'], radii, team_per_radius, oppo_per_radius)
+                    cv2.imshow("radii", image)
                     
+
+                    areas = cv2.imread("myfig.png")
+                    print(image.shape)
+                    resized = cv2.resize(areas, (image.shape[1], image.shape[0]),  cv2.INTER_AREA)
+
+                    cv2.imshow("areas", resized)
+
+                    image = visualiser.draw_single_frame(sequence[0]['location'], self.tracking_content[sequence[0]['id']])
+
+                    alpha = 0.4
+                    image = cv2.addWeighted(image, alpha, resized, 1 - alpha, 0)
+
+                    cv2.imshow("superimposed", image)
+                
+
+                    cv2.waitKey(0)
+                    cv2.destroyAllWindows()
                     event_ids.append([item['id'] for item in sequence])
 
                     first_5_zipped = zip(sequence, sequence[1:])
@@ -270,6 +322,7 @@ class CreateDataset():
             game = json.load(file)
             
         if(self.events is None):
+
             self.events = []
 
         filtered_game = self.filter_game(game)
@@ -277,6 +330,9 @@ class CreateDataset():
         for event in filtered_game:
             if event['id'] in self.tracking_content:
                 self.ids[event['id']] = len(self.events)
+
+                if(event['id'] == '372e10ef-772a-4f72-ae48-6243a03084da'):
+                    print("Man", file_location)
                 self.events.append(event)
 
     def loadFilesFromDir(self, dir, filterGamesWithoutTrackingData=False):
