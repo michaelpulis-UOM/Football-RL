@@ -6,7 +6,6 @@ from d3rlpy.metrics.scorer import td_error_scorer
 from d3rlpy.metrics.scorer import average_value_estimation_scorer
 from sklearn.model_selection import train_test_split
 
-
 # setup CQL algorithm
 cql = DiscreteCQL(use_gpu=False)
 

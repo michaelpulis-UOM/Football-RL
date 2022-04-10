@@ -1,0 +1,4 @@
+> Try channels idea
+> Model to predict xG value
+> Ghal Ftit wara: Stitching Scenarios Together
+> Keep in Mind: Data Augmentation 

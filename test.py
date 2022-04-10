@@ -1,28 +1,47 @@
-import random
-import matplotlib.pyplot as plt
-import numpy as np
+import json
+from create_dataset import  CreateDataset
 
 
-number_count = 10000
+# open the events data
+with open(r"events\3788741.json") as f:
+    events = json.load(f)
 
-# rands = [random.random() for i in range(number_count)]
-rands = np.random.normal(size=number_count).tolist()
+# open the tracking data
+with open(r"three-sixty\3788741.json") as f:
+    tracking = json.load(f)
 
-plt.title(f'Distribution of {number_count} random numbers (sort of normal)')
-plt.hist(rands)
-plt.show()
+events_array = []
 
-samples = 1000
-max_samples = 30
+# loop through the events data and extract the id
+for item in events:
+    events_array.append(item['id'])
 
-means = []
-for i in range(samples):
-    temp = []
-    for j in range(max_samples):
-        temp.append(random.choice(rands))
-    
-    means.append(sum(temp)/len(temp))
+tracking_array = []
 
-plt.hist(means)
-plt.title(f"Distribution of the means of {samples} random samples:")
-plt.show()
+# loop through the events data and extract the event_uuid
+for item in tracking:
+    tracking_array.append(item['event_uuid'])
+
+joined = []
+
+for item in tracking_array:
+    if item in events_array:
+        joined.append(item)
+
+print(len(events_array))
+print(len(tracking_array))
+print(len(joined))
+
+dataset_maker = CreateDataset()
+
+# dataset_maker.loadFile(file_location=r"events\3788741.json")
+# dataset_maker.loadTrackingContent(file_location=r"events\3788741.json")
+
+dataset_maker.loadTrackingContentFromDir('three-sixty/*.json')
+# dataset_maker.loadFilesFromDir('events/*.json', filterGamesWithoutTrackingData=True)
+
+print(len(dataset_maker.tracking_content))
+# print(len(dataset_maker.events))
+
+# x, y, rewards, events, t = dataset_maker.createImageDataset()
+# print(len(y))

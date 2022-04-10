@@ -196,16 +196,17 @@ class Visualiser():
             if c == 27:
                 exit()
 
-    def drawAllPlayers(self, blank_image, colours, id):
-        frame = self.tracking_content[id]
+    def drawAllPlayers(self, blank_image, colours, _id):
+        frame = self.tracking_content[_id]
         visible_area = frame['visible_area']
         x_values = visible_area[::2]
         y_values = visible_area[1::2]
 
-        needs_flip = True
-        if(y_values[1] >= y_values[len(y_values)-2]): needs_flip = False
+        # needs_flip = True
+        # if(y_values[1] >= y_values[len(y_values)-2]): needs_flip = False
+        needs_flip = False
         
-        team_a = (255,0,0) 
+        team_a = (255,255,0) 
         team_b = (0,0,255)
 
         if(needs_flip):
@@ -525,14 +526,16 @@ class Visualiser():
 
     def draw_zone(self, image, row, col, color, outline):
 
-        start_y = int(80*(row/self.rows))
-        end_y = int(80*((row+1)/self.rows))
+        start_y = 80*(row/self.rows)
+        end_y = 80*((row+1)/self.rows)
 
-        start_x = int(120*(col/self.cols))
-        end_x = int(120*((col+1)/self.cols))
+        start_x = 120*(col/self.cols)
+        end_x = 120*((col+1)/self.cols)
+
+        # print((end_x-start_x), (end_y-start_y))
 
 
-        image = cv2.rectangle(image, (start_x * self.ratio, start_y * self.ratio), (self.ratio * end_x, self.ratio * end_y), color, -1 if not outline else 2)
+        image = cv2.rectangle(image, (int(start_x * self.ratio), int(start_y * self.ratio)), (int(self.ratio * end_x), int(self.ratio * end_y)), color, -1 if not outline else 2)
 
         return (self.ratio* int((start_x+end_x)/2), self.ratio*int((start_y+end_y)/2))
 
@@ -563,8 +566,8 @@ class Visualiser():
             current_row, current_col = int(current_state[1]), int(current_state[2])
             next_row, next_col = int(next_state[1]), int(next_state[2])
 
-            start_point = self.draw_zone(self.blank_image, current_row, current_col, (0,0,255))
-            end_point = self.draw_zone(self.blank_image, next_row, next_col, (255,0,0))
+            start_point = self.draw_zone(self.blank_image, current_row, current_col, (0,0,255), False)
+            end_point = self.draw_zone(self.blank_image, next_row, next_col, (255,0,0), False)
 
             if(not(current_row == next_row and current_col == next_col)):
                 self.arrow_between(self.blank_image, start_point, end_point)
@@ -593,7 +596,7 @@ class Visualiser():
                 start_point = (int(start_point[0]-size[0][0]/2), int(start_point[1]-size[0][1]/2))
 
 
-                cv2.putText(image, label, start_point, self.font, 0.5, self.fontColor, 1, cv2.LINE_AA)
+                # cv2.putText(image, label, start_point, self.font, 0.5, self.fontColor, 1, cv2.LINE_AA)
 
 
         return image
@@ -605,7 +608,7 @@ class Visualiser():
         rad2.reverse()
         for radius in rad2:
             overlay = image.copy()
-            print("Center from players per circle ", center)
+            # print("Center from players per circle ", center)
 
             center_mod = (int(self.ratio * center[0]), int(self.ratio * center[1]))
             cv2.circle(overlay, center_mod, radius, (0,0,255), thickness=-1, lineType=cv2.LINE_AA, shift=0)
@@ -696,6 +699,7 @@ class Visualiser():
         plt.margins(0,0)
         plt.savefig("myfig.png",  bbox_inches = 'tight', transparent = True, pad_inches=0)
         plt.clf()
+
     def draw_single_frame(self, actor_position, frame):
         blank_image = np.zeros((self.height * self.ratio, self.width * self.ratio,3), np.uint8)
         blank_image[:] = (18, 97, 41)
@@ -722,8 +726,8 @@ class Visualiser():
 
             if(player['actor']): 
                 colour = (0,255,0)
-                print("Actor position from single frame", (x,y))
-            cv2.putText(blank_image, str(player['actor']), location, self.font, 0.5, (0,0,0), 1, cv2.LINE_AA)
+                # print("Actor position from single frame", (x,y))
+            # cv2.putText(blank_image, str(player['actor']), location, self.font, 0.5, (0,0,0), 1, cv2.LINE_AA)
             self.drawPlayer(blank_image, player['actor'], None, colour, location)
 
         # self.drawPlayer(blank_image, actor_position, None, (0,255,255), location)

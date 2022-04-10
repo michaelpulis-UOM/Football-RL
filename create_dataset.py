@@ -34,7 +34,7 @@ class CreateDataset():
             'carry':self.CARRY,
             'clearance':self.CLEAR,
             # 'foul won': self.FOUL,
-            'foul': self.FOUL,
+            # 'foul': self.FOUL,
 
         }
 
@@ -138,7 +138,7 @@ class CreateDataset():
 
         for player in frame['freeze_frame']:
 
-            if player['actor']: continue
+            # if player['actor']: continue
 
             x, y = player['location'][0], player['location'][1]
             r, c = self.get_zone_from_coords(x, y)
@@ -150,6 +150,195 @@ class CreateDataset():
 
         return team_players_per_zone, oppo_players_per_zone
 
+    def plot(self, x,y,z,grid):
+        # plt.figure()
+        
+        plt.imshow(grid, extent=(x.min(), x.max(), y.max(), y.min()), cmap='jet')
+        plt.scatter(x,y,c=z, cmap='jet')
+
+        plt.gca().set_axis_off()
+        plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
+                    hspace = 0, wspace = 0)
+
+        plt.margins(0,0)
+        plt.savefig("myfig.png",  bbox_inches = 'tight', transparent = True, pad_inches=0)
+        plt.clf()
+
+        return cv2.imread("myfig.png")  
+
+    def distance_matrix(self, x0, y0, x1, y1):
+        obs = np.vstack((x0, y0)).T
+        interp = np.vstack((x1, y1)).T
+
+        # Make a distance matrix between pairwise observations
+        # Note: from <http://stackoverflow.com/questions/1871536>
+        # (Yay for ufuncs!)
+        d0 = np.subtract.outer(obs[:,0], interp[:,0])
+        d1 = np.subtract.outer(obs[:,1], interp[:,1])
+
+        return np.hypot(d0, d1) * 2
+
+    
+    def getWeightedFromArrays(self, x,y,z):
+        nx = 120 
+        ny = 80
+
+        x=np.array(x)
+        y=np.array(y)
+        z=np.array(z)
+
+        xi = np.linspace(x.min(), x.max(), nx)
+        yi = np.linspace(y.min(), y.max(), ny)
+        xi, yi = np.meshgrid(xi, yi)
+        xi, yi = xi.flatten(), yi.flatten()
+
+        dist = self.distance_matrix(x,y, xi,yi)
+
+        # In IDW, weights are 1 / distance
+        weights = 1 / dist
+
+        # Make weights sum to one
+        weights /= weights.sum(axis=0)
+
+        # Multiply the weights for each interpolated point by all observed Z-values
+        zi = np.dot(weights.T, z)
+        zi = zi.reshape((ny, nx))
+
+        zi = np.nan_to_num(zi)
+        _max = np.min(zi)
+        _min = np.max(zi)
+
+        # get_space_bet_nums
+        diff = _max - _min
+
+        zi = (zi - _min) / diff
+        return zi    
+
+    def drawIDW(self, frame):
+
+        x , y, z = [], [], []
+
+        nx = 120 
+        ny = 80
+
+        x.append(0)
+        x.append(nx)
+        x.append(0)
+        x.append(nx)
+
+        y.append(0)
+        y.append(0)
+        y.append(ny)
+        y.append(ny)
+
+        z.append(0)
+        z.append(0)
+        z.append(0)
+        z.append(0)
+
+
+        actor_x, actor_y = -1, -1
+
+        for player in frame['freeze_frame']:
+            if(player['actor']):
+                actor_x = int(player['location'][0])
+                actor_y = int(player['location'][1])
+                
+
+
+            x_t = int(player['location'][0] )
+            y_t = int(player['location'][1] )
+            z_t = -1 if player['teammate'] else 1
+            
+            x.append(x_t)
+            y.append(y_t)
+            z.append(z_t)
+
+        x = np.array(x)
+        y = np.array(y)
+        z = np.array(z)
+
+        zi = self.getWeightedFromArrays(x, y, z)
+
+
+        just_actor_image = np.zeros(zi.shape)
+        cv2.circle(just_actor_image, (actor_x, actor_y), 3, (1), thickness=-1, lineType=cv2.LINE_AA, shift=0)
+        just_actor_image = cv2.resize(just_actor_image, (just_actor_image.shape[1]*2, just_actor_image.shape[0]*2), interpolation=cv2.INTER_CUBIC)
+
+        # enlarge image by factor of 2
+        big = cv2.resize(zi, (zi.shape[1]*2, zi.shape[0]*2), interpolation=cv2.INTER_CUBIC)
+        ret, dark_region = cv2.threshold(big, 0.5, 1, cv2.THRESH_TOZERO)
+
+        # cv2.imshow('big', big)
+
+        inverted = np.ones(big.shape, dtype=np.uint8) - big
+        ret, dark_region2 = cv2.threshold(inverted, 0.5, 1, cv2.THRESH_TOZERO)
+
+        # return zi
+
+        return np.array([just_actor_image, dark_region, dark_region2]).copy() * 255
+
+    # Create a dataset containing images
+    # Observation: 
+    # Image of player
+    # Image of team mates
+    # Image of opponents
+    # y1: Predicted Action
+    # y2: zone 0
+    # y3: zone 1
+    def createImageDataset(self):
+        x = []
+        y = []
+        rewards = []
+        event_ids = []
+        terminals = []
+
+
+        for i in tqdm(range(len(self.events)-2)):
+
+            # if( i > 50 ): break
+            self.ratio = 2
+            event = self.events[i]
+            next_event = self.events[i+1]
+            related_event = self.tracking_content[event['id']]
+
+
+            # from view import Visualiser
+            # visualiser = Visualiser()
+
+            # blank_image = np.zeros((visualiser.ratio*visualiser.height, visualiser.ratio*visualiser.width, 3), np.uint8)
+            # blank_image[:] = (18, 97, 41)
+
+            # # visualiser.loadContent('data.json')
+            # visualiser.loadTrackingContent(r'three-sixty\3788741.json')
+            # visualiser.drawAllPlayers(blank_image, None, event['id'])
+
+            # cv2.imshow("all", blank_image)
+            
+            # print("showed")
+
+            # Get the image
+            # returned_img = self.drawIDW(related_event)
+            img = self.drawIDW(related_event)
+            x.append(img)
+
+            end_location = [6,8]
+            # end location
+            try:
+                end_location = event[event['type']['name'].lower()]['end_location']
+            except Exception as e:
+                pass
+
+            zone = self.get_zone_from_coords(end_location[0], end_location[1])
+            y.append([self.getIDFromAction(event), zone[0], zone[1]])
+
+            reward = self.calculate_reward(event, next_event)
+            rewards.append(reward)
+            terminals.append(0 if reward != -1 else 1)
+
+        return np.array(x, dtype=np.uint8), np.array(y), np.array(rewards), np.array(event_ids), np.array(terminals)
+
+
     # Dataset specifications:
     # x:
     # float: action ID (0 = PASS, 1 = SHOOT...etc)
@@ -157,6 +346,8 @@ class CreateDataset():
     # y:
     # one hot encoded of location
     def createEpisodeDataset(self):
+
+        print("Events length: ", len(self.events))
 
         x, y, rewards, event_ids = [], [], [], []
 
@@ -173,49 +364,65 @@ class CreateDataset():
                 for sequence in sequences:
                     seq_x = [[self.getIDFromAction(item), self.get_XT_Zone(item)[0], self.get_XT_Zone(item)[1]] for item in sequence[:lim]]
                     seq_y = self.getIDFromAction(sequence[-1])
-
-                    print(sequence[0]['id'], sequence[0]['id'] in self.tracking_content)
-
-                    from view import Visualiser 
-
-                    players_per_zone, oppo_players_per_zone = self.getPlayersPerZone(self.tracking_content[sequence[0]['id']])
-
-            
-                    visualiser = Visualiser()
-
-                    visualiser.drawIDW(self.tracking_content[sequence[0]['id']])
-
-                    image = visualiser.draw_single_frame(sequence[0]['location'], self.tracking_content[sequence[0]['id']])
-                    cv2.imshow("simple_players", image)
-                    image = visualiser.show_players(image, players_per_zone, oppo_players_per_zone)
-                    cv2.imshow("grid", image)
-
-                    radii = [25, 65, 140]
-                    team_per_radius, oppo_per_radius = self.getPlayersPerRadius(self.tracking_content[sequence[0]['id']], sequence[0]['location'], radii)
-                    image  = visualiser.draw_players_per_circle(image, sequence[0]['location'], radii, team_per_radius, oppo_per_radius)
-                    cv2.imshow("radii", image)
                     
 
-                    areas = cv2.imread("myfig.png")
-                    print(image.shape)
-                    resized = cv2.resize(areas, (image.shape[1], image.shape[0]),  cv2.INTER_AREA)
+                    # from view import Visualiser 
+                    # visualiser = Visualiser()
 
-                    cv2.imshow("areas", resized)
+                    # a = False
+                    first_5_zipped = zip(sequence, sequence[1:])
+                    # for e in sequence:
+                    #     if e['type']['name'] == 'Shot': a = True
+                    seq_r = [self.calculate_reward(current_event, next_event) for current_event, next_event in first_5_zipped]
 
-                    image = visualiser.draw_single_frame(sequence[0]['location'], self.tracking_content[sequence[0]['id']])
+                    # if a and i== 391:
+                    #     for i2, ev in enumerate(sequence):
 
-                    alpha = 0.4
-                    image = cv2.addWeighted(image, alpha, resized, 1 - alpha, 0)
 
-                    cv2.imshow("superimposed", image)
-                
 
-                    cv2.waitKey(0)
-                    cv2.destroyAllWindows()
+                    #         # print(len(sequence), sequence[0]['id'], sequence[0]['id'] in self.tracking_content)
+                    #         players_per_zone, oppo_players_per_zone = self.getPlayersPerZone(self.tracking_content[ev['id']])
+                    #         visualiser.drawIDW(self.tracking_content[ev['id']])
+
+                    #         image = visualiser.draw_single_frame(ev['location'], self.tracking_content[ev['id']])
+                    #         # cv2.imshow("simple_players", image)
+                    #         image = visualiser.show_players(image, players_per_zone, oppo_players_per_zone)
+                    #         # cv2.imshow("grid", image)
+
+                    #         radii = [25, 65, 140]
+                    #         team_per_radius, oppo_per_radius = self.getPlayersPerRadius(self.tracking_content[ev['id']], ev['location'], radii)
+                    #         image  = visualiser.draw_players_per_circle(image, ev['location'], radii, team_per_radius, oppo_per_radius)
+                    #         # cv2.imshow("radii", image)
+                            
+
+                    #         areas = cv2.imread("myfig.png")
+                    #         # print(image.shape)
+                    #         resized = cv2.resize(areas, (image.shape[1], image.shape[0]),  cv2.INTER_AREA)
+
+                    #         # cv2.imshow("areas", resized)
+
+                    #         image = visualiser.draw_single_frame(ev['location'], self.tracking_content[ev['id']])
+
+                    #         alpha = 0.4
+                    #         image = cv2.addWeighted(image, alpha, resized, 1 - alpha, 0)
+                    #         image = visualiser.show_players(image, players_per_zone, oppo_players_per_zone)
+                    #         image = visualiser.draw_single_frame(ev['location'], self.tracking_content[ev['id']])
+
+
+                    #         # cv2.imshow("superimposed " + str(i), image)
+                    #         cv2.imwrite("tmp/"+str(i)+"-"+str(i2)+".png", image)
+                    #         try:
+                    #             print(ev['type'], seq_r[i2])
+                    #         except:
+                    #             print(ev['type'], ev['shot']['statsbomb_xg'])
+
+                    #         # cv2.waitKey(0)
+                    #         cv2.destroyAllWindows()
+                    #     print(sequence[-1]['shot']['statsbomb_xg'])
+                    #     print("-" * 20)
+                    #     # exit()
                     event_ids.append([item['id'] for item in sequence])
 
-                    first_5_zipped = zip(sequence, sequence[1:])
-                    seq_r = [self.calculate_reward(current_event, next_event) for current_event, next_event in first_5_zipped]
 
                     x.append(np.array(seq_x).flatten())
                     y.append(seq_y)
@@ -225,6 +432,8 @@ class CreateDataset():
             else:
                 current_actions.append(self.events[i])
 
+
+        
         return np.array(x), np.array(y), np.array(rewards), np.array(event_ids)
             
     # Dataset specifications:
@@ -252,9 +461,9 @@ class CreateDataset():
 
     def loadTrackingContentFromDir(self, dir):
         files = glob.glob(dir)
-        for file in tqdm(files[:3]):
-        # for file in tqdm(files[:self.file_limit]):
-            self.loadTrackingContent(file)
+        print("Loading tracking content:")
+        for _file in tqdm(files[:self.file_limit]):
+            self.loadTrackingContent(_file)
 
     def createDatasetMultY(self):
 
@@ -320,9 +529,8 @@ class CreateDataset():
         
         with open(file_location, 'r', encoding='utf-8') as file:
             game = json.load(file)
-            
-        if(self.events is None):
 
+        if(self.events is None):
             self.events = []
 
         filtered_game = self.filter_game(game)
@@ -330,19 +538,24 @@ class CreateDataset():
         for event in filtered_game:
             if event['id'] in self.tracking_content:
                 self.ids[event['id']] = len(self.events)
-
-                if(event['id'] == '372e10ef-772a-4f72-ae48-6243a03084da'):
-                    print("Man", file_location)
                 self.events.append(event)
 
     def loadFilesFromDir(self, dir, filterGamesWithoutTrackingData=False):
         files = glob.glob(dir)
-        for file_ in tqdm(files[:self.file_limit]):
+
+        lim = self.file_limit if not filterGamesWithoutTrackingData else -1
+
+        for file_ in tqdm(files[:lim]):
 
             game_id = file_.split("\\")[-1][:-5]
-            if game_id in self.games_with_tracking:
-                self.loadFile(file_)
+            if (filterGamesWithoutTrackingData and game_id in self.games_with_tracking):
 
+                if((self.events is not None) and self.file_limit != -1 and len(self.events) > self.file_limit):
+                    return
+
+                self.loadFile(file_)
+            elif(not filterGamesWithoutTrackingData):
+                self.loadFile(file_)
     
     def loadFilesFromDirFake(self, dir):
         files = glob.glob(dir)
@@ -359,21 +572,13 @@ class CreateDataset():
 
         return counter_has, counter_doesnt
 
-                
-
-
     def saveFiles(self, file_name):
         np.save("np_db/" +file_name, np.array(self.events))
 
     def leadFiles(self, file_name):
         self.events = np.load("np_db/" +file_name) # load
-
-
-    
 def main():
     datasetMaker = CreateDataset()
-
-
 
     # x, y1, y2 = datasetMaker.createDatasetMultY()
 
@@ -422,5 +627,15 @@ def main():
 
     # print(x.shape, y.shape, rewards.shape)
 
+def main2():
+    datasetMaker = CreateDataset()
+    datasetMaker.file_limit = 1
+    datasetMaker.loadTrackingContentFromDir('three-sixty/*.json')
+    datasetMaker.loadFilesFromDir('events/*.json', filterGamesWithoutTrackingData=True)
+    x, y, z, b, c = datasetMaker.createImageDataset()
+
+    print(x.shape)
+
 if __name__ == "__main__":
-    main()
+    # main()
+    main2()
