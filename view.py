@@ -688,6 +688,19 @@ class Visualiser():
         return zi
 
 
+    def drawPredictionImageDataset(self, image, source, pred):
+        width, height = image.shape
+
+        print(width, height)
+
+        # [[0.4366372  0.02083055 0.74801624 0.27203068 0.60895634 0.849681  ]]
+
+        zone_0, zone_1 = pred[-2], pred[-1]
+
+        sq_width, sq_height = width/16, height/12
+
+      
+
     def plot(self, x,y,z,grid):
         # plt.figure()
         plt.imshow(grid, extent=(x.min(), x.max(), y.max(), y.min()), cmap='jet')
