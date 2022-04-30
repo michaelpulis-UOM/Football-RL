@@ -1,3 +1,4 @@
+from tempfile import TemporaryFile
 import bisect
 import glob
 import numpy as np 
@@ -58,9 +59,9 @@ class CreateDataset():
 
 
     def get_index_of_event(self, event):
-        id = event['id']
+        _id = event['id']
         for i, event in enumerate(self.events):
-            if(event['id'] == id): return i
+            if(event['id'] == _id): return i
 
         return -1
 
@@ -259,25 +260,69 @@ class CreateDataset():
         z = np.array(z)
 
         zi = self.getWeightedFromArrays(x, y, z)
-
+        zi = zi ** 2
 
         just_actor_image = np.zeros(zi.shape)
         cv2.circle(just_actor_image, (actor_x, actor_y), 3, (1), thickness=-1, lineType=cv2.LINE_AA, shift=0)
-        just_actor_image = cv2.resize(just_actor_image, (just_actor_image.shape[1]*2, just_actor_image.shape[0]*2), interpolation=cv2.INTER_CUBIC)
-
+        
         # enlarge image by factor of 2
-        big = cv2.resize(zi, (zi.shape[1]*2, zi.shape[0]*2), interpolation=cv2.INTER_CUBIC)
-        ret, dark_region = cv2.threshold(big, 0.5, 1, cv2.THRESH_TOZERO)
+        # big = cv2.resize(zi, (zi.shape[1]*2, zi.shape[0]*2), interpolation=cv2.INTER_CUBIC)
+        ret, dark_region = cv2.threshold(zi, 0.5, 1, cv2.THRESH_TOZERO)
 
-        # cv2.imshow('big', big)
-
-        inverted = np.ones(big.shape, dtype=np.uint8) - big
+        inverted = np.ones(zi.shape, dtype=np.float32) - zi
         ret, dark_region2 = cv2.threshold(inverted, 0.5, 1, cv2.THRESH_TOZERO)
 
         # return zi
+        returning = np.array([just_actor_image*255, dark_region*255, dark_region2*255], dtype=np.uint8).copy()
+        return returning
 
-        return np.array([just_actor_image, dark_region, dark_region2]).copy() * 255
+    def drawRect(self, img, z0, z1, color):
+        if(len(img.shape) == 2):
+            fake = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)
+        else:
+            fake = img.copy()
+        
 
+        box_width = 120/16
+        box_height = 80/12
+
+
+
+        actual_start = (int(box_width * z1), int(box_height * z0))
+        actual_end = (int(box_width * (z1+1)), int(box_height * (z0+1)))
+
+        cv2.rectangle(fake, actual_start, actual_end, color, thickness=1, lineType=cv2.LINE_AA, shift=0)
+        return fake
+
+    def drawSimple(self, frame):
+
+        actor_frame = np.zeros(shape=(80,120), dtype=np.uint8)
+        team_frame = np.zeros(shape=(80,120), dtype=np.uint8)
+        opp_frame = np.zeros(shape=(80,120), dtype=np.uint8)
+
+        actor_x, actor_y = -1, -1
+
+        for player in frame['freeze_frame']:
+            if(player['actor']):
+                actor_x = int(player['location'][0])
+                actor_y = int(player['location'][1])
+
+                # draw circle at actor_x, actor_y on actor_frame with cv2
+                cv2.circle(actor_frame, (actor_x, actor_y), 3, (255,255,255), thickness=-1, lineType=cv2.LINE_AA, shift=0)
+            elif(player['teammate']):
+                # draw circle at x, y on team_frame with cv2
+                cv2.circle(team_frame, (int(player['location'][0]), int(player['location'][1])), 3, (255,255,255), thickness=-1, lineType=cv2.LINE_AA, shift=0)
+            elif(not player['teammate']):
+                # draw circle at x, y on opp_frame with cv2
+                cv2.circle(opp_frame, (int(player['location'][0]), int(player['location'][1])), 3, (255,255,255), thickness=-1, lineType=cv2.LINE_AA, shift=0)
+
+
+
+
+        
+
+        returning = np.array([actor_frame, team_frame, opp_frame], dtype=np.uint8).copy()
+        return returning
     # Create a dataset containing images
     # Observation: 
     # Image of player
@@ -302,7 +347,6 @@ class CreateDataset():
             next_event = self.events[i+1]
             related_event = self.tracking_content[event['id']]
 
-
             # from view import Visualiser
             # visualiser = Visualiser()
 
@@ -319,23 +363,37 @@ class CreateDataset():
 
             # Get the image
             # returned_img = self.drawIDW(related_event)
-            img = self.drawIDW(related_event)
-            x.append(img)
-
-            end_location = [6,8]
+            
             # end location
+            end_location = [6,8]
             try:
                 end_location = event[event['type']['name'].lower()]['end_location']
             except Exception as e:
                 pass
 
             zone = self.get_zone_from_coords(end_location[0], end_location[1])
-            y.append([self.getIDFromAction(event), zone[0], zone[1]])
+
+            img = self.drawSimple(related_event)
+
+            x.append(img)
+
+            event_ids.append(event['id'])
+
+
+            # Get the action
+            chosen_action = int(self.getIDFromAction(event))
+            one_hot = self.oneHot(chosen_action)
+            one_hot.append(end_location[0]/120)
+            one_hot.append(end_location[1]/80)
+            # one_hot.append(zone[0]/15)
+            # one_hot.append(zone[1]/11)
+
+            y.append(one_hot)
 
             reward = self.calculate_reward(event, next_event)
             rewards.append(reward)
             terminals.append(0 if reward != -1 else 1)
-
+        
         return np.array(x, dtype=np.uint8), np.array(y), np.array(rewards), np.array(event_ids), np.array(terminals)
 
 
@@ -515,6 +573,12 @@ class CreateDataset():
 
         return np.array(x), np.array(y)
 
+    def oneHot(self, chosenAction):
+        empty = [0 for i in range(len(self.good_events))]
+        empty[chosenAction] = 1
+
+        return empty
+
     def getEndLocationFromAction(self, action):
         try:
             action_type = self.getIDFromAction(action)
@@ -542,18 +606,23 @@ class CreateDataset():
 
     def loadFilesFromDir(self, dir, filterGamesWithoutTrackingData=False):
         files = glob.glob(dir)
-
+        files_loaded = 0
         lim = self.file_limit if not filterGamesWithoutTrackingData else -1
 
-        for file_ in tqdm(files[:lim]):
+        file_progress = tqdm(files[:lim])
+        for file_ in file_progress:
 
             game_id = file_.split("\\")[-1][:-5]
             if (filterGamesWithoutTrackingData and game_id in self.games_with_tracking):
 
-                if((self.events is not None) and self.file_limit != -1 and len(self.events) > self.file_limit):
+                if((self.events is not None) and self.file_limit != -1 and files_loaded > self.file_limit):
                     return
 
                 self.loadFile(file_)
+                file_progress.set_description("file count: " + str(files_loaded) + " / " +str(self.file_limit)) 
+                
+                
+                files_loaded += 1
             elif(not filterGamesWithoutTrackingData):
                 self.loadFile(file_)
     
@@ -629,10 +698,15 @@ def main():
 
 def main2():
     datasetMaker = CreateDataset()
-    datasetMaker.file_limit = 1
+    datasetMaker.file_limit = -1
     datasetMaker.loadTrackingContentFromDir('three-sixty/*.json')
     datasetMaker.loadFilesFromDir('events/*.json', filterGamesWithoutTrackingData=True)
     x, y, z, b, c = datasetMaker.createImageDataset()
+
+    tmp_file = TemporaryFile()
+    arr_1 = np.arange(10)
+    arr_2 = np.arange(10)
+    np.savez("saved_datasets\\testing.npz", x, y, z, b, c)
 
     print(x.shape)
 
