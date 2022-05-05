@@ -397,6 +397,175 @@ class CreateDataset():
         return np.array(x, dtype=np.uint8), np.array(y), np.array(rewards), np.array(event_ids), np.array(terminals)
 
 
+    def drawTileCodingInternal(self, ratio, image, tile, grid_size, thickness, colour):
+        for i in range(grid_size[0]):
+            for j in range(grid_size[1]):
+                cv2.rectangle(image, (int(ratio*(tile[0] + i)), int(ratio*(tile[1] + j))), 
+                                           (int(ratio*(tile[0] + i + 1)), int(ratio*(tile[1] + j + 1))),
+                                           colour, thickness=thickness, lineType=cv2.LINE_AA, shift=0)
+
+        return image
+
+
+    def createTileCoding2(self):
+
+        actual_tile = (1,1)
+
+        grid_size = (4,3)
+        ratio = 50
+
+        tiles = [
+            (0.7,0.9),
+            (0.9,0.7),
+            (1.2,1),
+            (1.0,1.2),
+            # (0.85,1.2),
+            # (1.05,0.9),
+        ]
+
+        colours = [
+            (0, 255, 0),
+            (255, 255, 255),
+            (0, 255,255),
+            (0, 0, 255),
+            (0, 255, 255),
+            (255, 0, 255),
+        ]
+
+        point = (5,4)
+
+        points = [
+            (2.5,2),
+            (1.5,5),
+            (4.5,3.1),
+        ]
+        
+
+        width = max (max(tile[0] + grid_size[0] for tile in tiles), actual_tile[0] + grid_size[0])
+        height = max (max(tile[1] + grid_size[1] for tile in tiles), actual_tile[1] + grid_size[1])
+
+        padding=1
+
+
+        blank_image = np.zeros((int(ratio*(height+padding)), int(ratio*(width+padding)), 3), np.uint8)
+
+        # draw the actual
+        self.drawTileCodingInternal(ratio, blank_image, actual_tile, grid_size, -1, (255,0,0))
+
+        # draw the other tiles
+        for tile_index, tile in enumerate(tiles):
+            self.drawTileCodingInternal(ratio, blank_image, tile, grid_size, 1, colours[tile_index])
+
+        point_shower = np.zeros((int(ratio*(height+padding)), int(ratio*(width+padding)), 3), np.uint8)
+
+        # draw just the highlighted grid point
+        for point in points:
+            for tile_index, tile in enumerate(tiles):
+                for i in range(grid_size[0]):
+                    for j in range(grid_size[1]):
+                        # check if point in square python
+                        if(point[0] >= tile[0] + i and point[0] < tile[0] + i + 1 and point[1] >= tile[1] + j and point[1] < tile[1] + j + 1):
+                            cv2.rectangle(point_shower, (int(ratio*(tile[0] + i)), int(ratio*(tile[1] + j))), 
+                                                    (int(ratio*(tile[0] + i + 1)), int(ratio*(tile[1] + j + 1))), 
+                                                    colours[tile_index], thickness=1, lineType=cv2.LINE_AA, shift=0)
+
+        # draw circle
+        for point in points:
+            cv2.circle(point_shower, (int(ratio*point[0]), int(ratio*point[1])), 3, (255,255,255), thickness=-1, lineType=cv2.LINE_AA, shift=0)
+            cv2.circle(blank_image, (int(ratio*point[0]), int(ratio*point[1])), 3, (255,255,255), thickness=-1, lineType=cv2.LINE_AA, shift=0)
+
+        # calculate which point is in which tile
+        tile_codings = np.zeros((len(tiles), grid_size[0], grid_size[1]))
+
+        for point in points:
+            for i, tile_coding in enumerate(tiles):
+                x = math.ceil((point[0]-tile_coding[0]))
+                y = math.ceil((point[1]-tile_coding[1]))
+
+                if(x > 0 and x <= grid_size[0] and y > 0 and y <= grid_size[1]):
+                    print("ADding")
+                    tile_codings[i, x-1, y-1] += 1
+
+        # save tile codings to file
+        with open("tile_codings.txt", "w") as f:
+            for tile_coding in tile_codings:
+                tile_coding_copy = tile_coding.copy().transpose()
+                for row in tile_coding_copy:
+                    f.write(str(row) + ",\n")
+                f.write("---------\n")
+
+        for point in points:
+            for tile_index, tile_coding in enumerate(tile_codings):
+                for i in range(grid_size[0]):
+                    for j in range(grid_size[1]):
+                        if(tile_coding[i][j] >= 1):
+                            cv2.rectangle(blank_image, 
+                                         (int(ratio*(tiles[tile_index][0] + i)), int(ratio*(tiles[tile_index][1] + j))), 
+                                         (int(ratio*(tiles[tile_index][0] + i + 1)), int(ratio*(tiles[tile_index][1] + j + 1))), 
+                                         colours[tile_index], thickness=-1, lineType=cv2.LINE_AA, shift=0)
+        for point in points:
+            cv2.circle(blank_image, (int(ratio*point[0]), int(ratio*point[1])), 3, (255,255,255), thickness=-1, lineType=cv2.LINE_AA, shift=0)
+
+        cv2.imshow("all", blank_image)
+        cv2.imshow("point_shower", point_shower)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    def createTileCoding(self):
+
+        grid_count = 2
+        grid_dim = (4,4)
+        ratio = 50
+
+        width = (grid_dim[0] + (grid_count-1)) * ratio
+        height = (grid_dim[1] + (grid_count-1)) * ratio
+
+        # green = (18, 97, 41)
+        # draw rectangle on blank image with opencv
+        blank_image = np.zeros((height, width, 3), np.uint8)
+        blank_image[:] = (0, 0, 0)
+
+        points = [
+            [2.3, 2.4],
+            [3.5, 2.6],
+            [2.1, 1.1],
+            [3.9, 3.2],
+        ]
+
+        colours = [
+            # red
+            (0, 255, 0),
+            (255, 255, 255),
+            (0, 255,255),
+            # green
+            # blue
+
+            (0, 0, 255),
+            # yellow
+            
+            # cyan
+            (0, 255, 255),
+            # magenta
+            (255, 0, 255),
+        ]
+
+
+
+        # draw rectangle on blank image with opencv
+        for grid_index in range(grid_count):
+            x_offset = int((1/(grid_dim[0]-1)) * grid_index * ratio)
+            y_offset = int((1/(grid_dim[1]-1)) * grid_index * ratio)
+
+            # draw a grid
+            for i in range(grid_dim[0]):
+                for j in range(grid_dim[1]):
+                    cv2.rectangle(blank_image, (x_offset+i*ratio, y_offset+j*ratio), (x_offset+(i+1)*ratio, y_offset+(j+1)*ratio), colours[grid_index], thickness=1, lineType=cv2.LINE_AA, shift=0)
+        
+
+        cv2.imshow("grid_world", blank_image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
     # Dataset specifications:
     # x:
     # float: action ID (0 = PASS, 1 = SHOOT...etc)
@@ -698,6 +867,10 @@ def main():
 
 def main2():
     datasetMaker = CreateDataset()
+    datasetMaker.createTileCoding2()
+
+    exit()
+
     datasetMaker.file_limit = -1
     datasetMaker.loadTrackingContentFromDir('three-sixty/*.json')
     datasetMaker.loadFilesFromDir('events/*.json', filterGamesWithoutTrackingData=True)
