@@ -347,24 +347,6 @@ class CreateDataset():
             next_event = self.events[i+1]
             related_event = self.tracking_content[event['id']]
 
-            # from view import Visualiser
-            # visualiser = Visualiser()
-
-            # blank_image = np.zeros((visualiser.ratio*visualiser.height, visualiser.ratio*visualiser.width, 3), np.uint8)
-            # blank_image[:] = (18, 97, 41)
-
-            # # visualiser.loadContent('data.json')
-            # visualiser.loadTrackingContent(r'three-sixty\3788741.json')
-            # visualiser.drawAllPlayers(blank_image, None, event['id'])
-
-            # cv2.imshow("all", blank_image)
-            
-            # print("showed")
-
-            # Get the image
-            # returned_img = self.drawIDW(related_event)
-            
-            # end location
             end_location = [6,8]
             try:
                 end_location = event[event['type']['name'].lower()]['end_location']
@@ -372,22 +354,15 @@ class CreateDataset():
                 pass
 
             zone = self.get_zone_from_coords(end_location[0], end_location[1])
-
             img = self.drawSimple(related_event)
-
             x.append(img)
-
             event_ids.append(event['id'])
-
 
             # Get the action
             chosen_action = int(self.getIDFromAction(event))
             one_hot = self.oneHot(chosen_action)
             one_hot.append(end_location[0]/120)
             one_hot.append(end_location[1]/80)
-            # one_hot.append(zone[0]/15)
-            # one_hot.append(zone[1]/11)
-
             y.append(one_hot)
 
             reward = self.calculate_reward(event, next_event)
@@ -407,7 +382,111 @@ class CreateDataset():
         return image
 
 
-    def createTileCoding2(self):
+    def createTileCoding(self, tiles, grid_size, points):
+        actual_tile = (1,1)
+        tile_codings = np.zeros((len(tiles), grid_size[0], grid_size[1]))
+
+        for point in points:
+            for i, tile_coding in enumerate(tiles):
+                x = math.ceil((actual_tile[0]+point[0]-tile_coding[0]))
+                y = math.ceil((actual_tile[1]+point[1]-tile_coding[1]))
+
+                if(x > 0 and x <= grid_size[0] and y > 0 and y <= grid_size[1]):
+                    tile_codings[i, x-1, y-1] += 1
+
+
+        return tile_codings
+
+    def createTileCodingDataset(self):
+
+        x = []
+        y = []
+        rewards = []
+        event_ids = []
+        terminals = []
+
+        grid_size = (4,3)
+        width = 120/grid_size[0]
+        height= 80/grid_size[1]
+
+        tiles = [
+            (0.7,1),
+            (0.9,0.7),
+            (1.2,1),
+            (1.0,1.2),
+        ]
+
+
+        # flatten the x array
+        # 
+
+
+        for i in tqdm(range(len(self.events)-2)):
+
+            # if( i > 50 ): break
+            self.ratio = 2
+            event = self.events[i]
+            next_event = self.events[i+1]
+            related_event = self.tracking_content[event['id']]
+
+            opponent_points = []
+            team_points = []
+            player_point = None
+
+            for player in related_event['freeze_frame']:
+                if(not player['teammate']):
+                    a = int(math.floor(player['location'][0]/width))
+                    b = int(math.floor(player['location'][1]/height))
+
+                    opponent_points.append((a,b))
+                elif (player['actor']):
+                    a = int(math.floor(player['location'][0]/width))
+                    b = int(math.floor(player['location'][1]/height))
+
+                    player_point = (a,b)
+                elif (player['teammate']):
+                    a = int(math.floor(player['location'][0]/width))
+                    b = int(math.floor(player['location'][1]/height))
+
+                    team_points.append((a,b))
+
+            if(player_point is None): continue
+
+            player_tiles = self.createTileCoding(tiles, grid_size, [player_point])            
+            team_tiles = self.createTileCoding(tiles, grid_size, team_points)            
+            opponent_tiles = self.createTileCoding(tiles, grid_size, opponent_points)            
+
+            event_ids.append(event['id'])
+
+            end_location = [6,8]
+            try:
+                end_location = event[event['type']['name'].lower()]['end_location']
+            except Exception as e:
+                pass
+
+            zone = self.get_zone_from_coords(end_location[0], end_location[1])
+
+            # Get the action
+            chosen_action = int(self.getIDFromAction(event))
+            one_hot = self.oneHot(chosen_action)
+            one_hot.append(end_location[0]/120)
+            one_hot.append(end_location[1]/80)
+
+            x.append(np.concatenate((player_tiles, team_tiles, opponent_tiles)).flatten())
+            y.append(one_hot)
+
+            reward = self.calculate_reward(event, next_event)
+            rewards.append(reward)
+            terminals.append(0 if reward != -1 else 1)
+
+
+
+        return np.array(x, dtype=np.uint8), np.array(y), np.array(rewards), np.array(event_ids), np.array(terminals)
+
+        
+
+
+    def visualiseTileCoding(self):
 
         actual_tile = (1,1)
 
@@ -415,7 +494,7 @@ class CreateDataset():
         ratio = 50
 
         tiles = [
-            (0.7,0.9),
+            (0.7,1),
             (0.9,0.7),
             (1.2,1),
             (1.0,1.2),
@@ -436,8 +515,8 @@ class CreateDataset():
 
         points = [
             (2.5,2),
-            (1.5,5),
-            (4.5,3.1),
+            (1.5,4),
+            # (4.5,3.1),
         ]
         
 
@@ -464,10 +543,16 @@ class CreateDataset():
                 for i in range(grid_size[0]):
                     for j in range(grid_size[1]):
                         # check if point in square python
-                        if(point[0] >= tile[0] + i and point[0] < tile[0] + i + 1 and point[1] >= tile[1] + j and point[1] < tile[1] + j + 1):
+                        x_0 = tile[0] + i
+                        x_1 = tile[0] + i + 1
+
+                        y_0 = tile[1] + j
+                        y_1 = tile[1] + j + 1
+
+                        if( x_0 < point[0] <= x_1 and y_0 < point[1] <= y_1 ):
                             cv2.rectangle(point_shower, (int(ratio*(tile[0] + i)), int(ratio*(tile[1] + j))), 
-                                                    (int(ratio*(tile[0] + i + 1)), int(ratio*(tile[1] + j + 1))), 
-                                                    colours[tile_index], thickness=1, lineType=cv2.LINE_AA, shift=0)
+                                                        (int(ratio*(tile[0] + i + 1)), int(ratio*(tile[1] + j + 1))), 
+                                                        colours[tile_index], thickness=1, lineType=cv2.LINE_AA, shift=0)
 
         # draw circle
         for point in points:
@@ -487,12 +572,12 @@ class CreateDataset():
                     tile_codings[i, x-1, y-1] += 1
 
         # save tile codings to file
-        with open("tile_codings.txt", "w") as f:
-            for tile_coding in tile_codings:
-                tile_coding_copy = tile_coding.copy().transpose()
-                for row in tile_coding_copy:
-                    f.write(str(row) + ",\n")
-                f.write("---------\n")
+        # with open("tile_codings.txt", "w") as f:
+        #     for tile_coding in tile_codings:
+        #         tile_coding_copy = tile_coding.copy().transpose()
+        #         for row in tile_coding_copy:
+        #             f.write(str(row) + ",\n")
+        #         f.write("---------\n")
 
         for point in points:
             for tile_index, tile_coding in enumerate(tile_codings):
@@ -511,7 +596,7 @@ class CreateDataset():
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
-    def createTileCoding(self):
+    def createTileCodingOld(self):
 
         grid_count = 2
         grid_dim = (4,4)
@@ -867,14 +952,17 @@ def main():
 
 def main2():
     datasetMaker = CreateDataset()
-    datasetMaker.createTileCoding2()
 
-    exit()
-
-    datasetMaker.file_limit = -1
     datasetMaker.loadTrackingContentFromDir('three-sixty/*.json')
     datasetMaker.loadFilesFromDir('events/*.json', filterGamesWithoutTrackingData=True)
     x, y, z, b, c = datasetMaker.createImageDataset()
+    # x, y, z, b, c = datasetMaker.createTileCodingDataset()
+    np.savez("saved_datasets\\tile_coding.npz", x, y, z, b, c)
+
+    print(x.shape, y.shape, z.shape, b.shape, c.shape)
+    exit()
+
+    datasetMaker.file_limit = -1
 
     tmp_file = TemporaryFile()
     arr_1 = np.arange(10)
