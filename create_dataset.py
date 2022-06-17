@@ -404,6 +404,7 @@ class CreateDataset():
         rewards = []
         event_ids = []
         terminals = []
+        imgs = []
 
         grid_size = (4,3)
         width = 120/grid_size[0]
@@ -469,8 +470,8 @@ class CreateDataset():
             # Get the action
             chosen_action = int(self.getIDFromAction(event))
             one_hot = self.oneHot(chosen_action)
-            one_hot.append(end_location[0]/120)
-            one_hot.append(end_location[1]/80)
+            one_hot.append((end_location[0]/120)*2 - 1)
+            one_hot.append((end_location[1]/80)*2 - 1)
 
             x.append(np.concatenate((player_tiles, team_tiles, opponent_tiles)).flatten())
             y.append(one_hot)
@@ -479,9 +480,12 @@ class CreateDataset():
             rewards.append(reward)
             terminals.append(0 if reward != -1 else 1)
 
+            img = self.drawSimple(related_event)
+            imgs.append(img)
 
 
-        return np.array(x, dtype=np.uint8), np.array(y), np.array(rewards), np.array(event_ids), np.array(terminals)
+
+        return np.array(x, dtype=np.uint8), np.array(y), np.array(rewards), np.array(event_ids), np.array(terminals), np.array(imgs)
 
         
 
@@ -900,9 +904,80 @@ class CreateDataset():
 
     def leadFiles(self, file_name):
         self.events = np.load("np_db/" +file_name) # load
+
+    def createNestedGridTest(self):
+        general_grid = (4,3)
+        detailed_grid = (2,2)
+        ratio = 4
+
+        selected_index = 9
+        sub_selected_index = 1
+
+        for selected_index in range(general_grid[0]*general_grid[1]):
+            for sub_selected_index in range(detailed_grid[0]*detailed_grid[1]):
+                pitch_width = 105
+                pitch_height = 68
+                # cv2 black image width 105 height 68
+                empty = np.zeros((pitch_height*ratio, pitch_width*ratio, 3), np.uint8)
+
+
+                col_width = pitch_width / general_grid[0]
+                for column in range(general_grid[0])[1:]:
+                    cv2.line(empty, (int(col_width * column*ratio), 0), (int(col_width * column*ratio), int(pitch_height*ratio)), (255, 255, 255), 1)
+
+                col_height = pitch_height / general_grid[1]
+                for row in range(general_grid[1])[1:]:
+                    cv2.line(empty, (0, int(col_height * row*ratio)), (int(pitch_width*ratio), int(col_height*row*ratio)), (255, 255, 255), 1)
+
+
+                
+
+                bi = (int(selected_index % general_grid[0]), int(math.floor(selected_index/general_grid[0])))
+
+                # draw rectangle at bi
+                cv2.rectangle(empty, (int(bi[0]*col_width*ratio), int(bi[1]*col_height*ratio)), (int((bi[0]+1)*col_width*ratio), int((bi[1]+1)*col_height*ratio)), (255, 255, 255), -1)
+
+                # draw detailed grid at bi
+                detailed_col_width = pitch_width / (general_grid[0] * detailed_grid[0])
+                detailed_row_height = pitch_height / (general_grid[1] * detailed_grid[1])
+
+                col_width = pitch_width / general_grid[0]
+                for column in range(detailed_grid[0])[1:]:
+                    cv2.line(empty, (int(bi[0]*col_width*ratio + detailed_col_width * column*ratio), int(bi[1]*col_height*ratio)), (int(bi[0]*col_width*ratio + detailed_col_width * column*ratio), int((bi[1]+1)*col_height*ratio)), (0, 0, 0), 1)
+
+                col_height = pitch_height / general_grid[1]
+                for row in range(detailed_grid[1])[1:]:
+                    cv2.line(empty, (int(bi[0]*col_width*ratio), int(bi[1]*col_height*ratio + detailed_row_height * row*ratio)), (int((bi[0]+1)*col_width*ratio), int(bi[1]*col_height*ratio + detailed_row_height * row*ratio)), (0, 0, 0), 1)
+
+
+                # cv2.rectangle(empty, (int(bi[0]*col_width*ratio), int(bi[1]*col_height*ratio)), (int((bi[0]+1)*col_width*ratio), int((bi[1]+1)*col_height*ratio)), (255, 255, 255), -1)
+
+                detailed_bi = (int(sub_selected_index % detailed_grid[0]), int(math.floor(sub_selected_index/detailed_grid[0])))
+                cv2.rectangle(empty, (
+                    int(((bi[0]*col_width) + (detailed_bi[0]*detailed_col_width))*ratio),
+                    int(((bi[1]*col_height) + (detailed_bi[1]*detailed_row_height))*ratio)
+                    ),
+                    (
+                    int(((bi[0]*col_width) + (detailed_bi[0]+1)*detailed_col_width)*ratio),
+                    int(((bi[1]*col_height) + (detailed_bi[1]+1)*detailed_row_height)*ratio)
+                    ),
+                    (0, 0, 255), -1)
+                    
+
+
+                # resize empty 2x
+                # empty = cv2.resize(empty, (0,0), fx=4, fy=4)
+
+                cv2.imshow("empty", empty)
+                cv2.waitKey(80)
+                cv2.destroyAllWindows()
+
+
+
 def main():
     datasetMaker = CreateDataset()
-
+    datasetMaker.createNestedGridTest()
+    exit()
     # x, y1, y2 = datasetMaker.createDatasetMultY()
 
     # datasetMaker.loadTrackingContent('data_track.json')
@@ -952,12 +1027,13 @@ def main():
 
 def main2():
     datasetMaker = CreateDataset()
-
+    # datasetMaker.visualiseTileCoding()
+    # exit()  
     datasetMaker.loadTrackingContentFromDir('three-sixty/*.json')
     datasetMaker.loadFilesFromDir('events/*.json', filterGamesWithoutTrackingData=True)
-    x, y, z, b, c = datasetMaker.createImageDataset()
-    # x, y, z, b, c = datasetMaker.createTileCodingDataset()
-    np.savez("saved_datasets\\tile_coding.npz", x, y, z, b, c)
+    # x, y, z, b, c = datasetMaker.createImageDataset()
+    x, y, z, b, c, d = datasetMaker.createTileCodingDataset()
+    np.savez("saved_datasets\\tile_coding.npz", x, y, z, b, c, d)
 
     print(x.shape, y.shape, z.shape, b.shape, c.shape)
     exit()
@@ -972,5 +1048,5 @@ def main2():
     print(x.shape)
 
 if __name__ == "__main__":
-    # main()
-    main2()
+    main()
+    # main2()
